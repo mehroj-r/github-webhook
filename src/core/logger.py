@@ -8,7 +8,7 @@ LOGGING_CONFIG = {
     "formatters": {
         "colored": {
             "()": "colorlog.ColoredFormatter",
-            "format": "%(log_color)s[%(asctime)s] %(levelname)-8s%(reset)s %(blue)s%(module)s%(reset)s: %(log_color)s%(message)s",
+            "format": "%(log_color)s[%(asctime)s] %(levelname)-5s%(reset)s %(blue)s%(module)s%(reset)s: %(log_color)s%(message)s",
             "log_colors": {
                 "DEBUG": "cyan",
                 "INFO": "green",
@@ -72,3 +72,12 @@ def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
 
     return logger
+
+
+def get_logger_config() -> dict:
+    """
+    Get the logging configuration for a specific logger.
+
+    :return: The logging configuration dictionary.
+    """
+    return LOGGING_CONFIG

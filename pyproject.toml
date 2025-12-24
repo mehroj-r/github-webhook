@@ -5,10 +5,15 @@ description = "Add your description here"
 requires-python = ">=3.13"
 dependencies = [
     "aiogram>=3.23.0",
+    "aiohttp>=3.13.2",
     "colorlog>=6.10.1",
+    "fastapi[standard]>=0.127.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
 ]
+
+[project.scripts]
+start = "main:run"
 
 [dependency-groups]
 dev = [

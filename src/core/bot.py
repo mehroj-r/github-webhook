@@ -32,8 +32,13 @@ async def init_bot():
 async def _init_with_webhook():
     """Initialize the bot with webhook"""
     logger.info(f"Setting webhook to {settings.WEBHOOK_URL}")
-    await bot.set_webhook(url=settings.WEBHOOK_URL, drop_pending_updates=True, secret_token=settings.WEBHOOK_SECRET)
-    register_all_handlers(dp)
+    webhook_url = settings.WEBHOOK_URL + "/telegram" + settings.WEBHOOK_PATH
+    await bot.set_webhook(
+        url=webhook_url,
+        drop_pending_updates=True,
+        secret_token=settings.WEBHOOK_SECRET,
+    )
+    logger.info("Webhook set successfully. Waiting for updates...")
 
 
 async def _init_with_polling():

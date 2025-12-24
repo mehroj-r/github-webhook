@@ -1,4 +1,3 @@
-import os
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -15,6 +14,11 @@ class Settings(BaseSettings):
     USE_WEBHOOK: bool = False
     WEBHOOK_URL: str = ""
     WEBHOOK_SECRET: str = ""
+    WEBHOOK_PATH: str = "/webhook"
+
+    # FastAPI Server Settings
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
 
 
 @lru_cache
