@@ -1,2 +1,12 @@
 /.venv/
 /.idea/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Log files
+logs/
+*.log
+
