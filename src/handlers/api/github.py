@@ -3,7 +3,7 @@ from pprint import pprint
 from fastapi import APIRouter, Request
 
 from config import settings
-from handlers.api.models.github.events import PushEvent, CreateEvent
+from handlers.api.models.github.events import PushEvent, CreateEvent, DeleteEvent
 from handlers.api.models.github.headers import WebhookHeaders
 
 router = APIRouter(prefix="/github", tags=["github"])
@@ -24,6 +24,10 @@ async def github_webhook(request: Request):
     # Extract event type
     action = headers.event
 
+    pprint(headers.model_dump())
+    pprint("\n\n")
+    pprint(request_body)
+
     event = None
     match action:
         case "push":
@@ -32,12 +36,12 @@ async def github_webhook(request: Request):
         case "create":
             pprint("Received a create event")
             event = CreateEvent.model_validate_json(request_body)
+        case "delete":
+            pprint("Received a delete event")
+            event = DeleteEvent.model_validate_json(request_body)
         case _:
             pprint(f"Received an unsupported event type: {action}")
 
-    pprint(headers.model_dump())
-    pprint("\n\n")
-    pprint(request_body)
     pprint(event.model_dump() if event else "No event data")
 
     return {"status": "received"}

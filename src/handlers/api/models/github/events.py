@@ -84,3 +84,31 @@ class CreateEvent(BaseModel):
     def ref_name(self) -> str:
         """Get the name of the created tag or branch"""
         return self.ref
+
+
+class DeleteEvent(BaseModel):
+    """
+    GitHub delete webhook event
+    Triggered when a Git branch or tag is deleted
+    """
+
+    ref: str
+    ref_type: Literal["tag", "branch"]
+    pusher_type: Literal["user", "deploy_key"]
+    repository: Repository
+    sender: User
+
+    @property
+    def is_tag(self) -> bool:
+        """Check if this event deleted a tag"""
+        return self.ref_type == "tag"
+
+    @property
+    def is_branch(self) -> bool:
+        """Check if this event deleted a branch"""
+        return self.ref_type == "branch"
+
+    @property
+    def ref_name(self) -> str:
+        """Get the name of the deleted tag or branch"""
+        return self.ref
