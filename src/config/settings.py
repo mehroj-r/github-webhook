@@ -14,7 +14,12 @@ class Settings(BaseSettings):
     USE_WEBHOOK: bool = False
     WEBHOOK_URL: str = ""
     WEBHOOK_SECRET: str = ""
-    WEBHOOK_PATH: str = "/webhook"
+    WEBHOOK_PATH: str = "/webhook"  # /telegram/webhook
+
+    # GitHub Settings
+    GH_WEBHOOK_SECRET: str = ""
+    GH_WEBHOOK_URL: str = ""
+    GH_WEBHOOK_PATH: str = "/webhook"  # /github/webhook
 
     # FastAPI Server Settings
     HOST: str = "0.0.0.0"
