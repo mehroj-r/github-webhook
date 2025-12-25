@@ -2,7 +2,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from handlers import register_all_handlers
+from handlers.bot import setup_bot_handlers
 from config import settings
 from core import get_logger
 
@@ -20,7 +20,7 @@ async def init_bot():
     """Initialize the bot"""
     logger.info("Initializing bot")
 
-    register_all_handlers(dp)
+    setup_bot_handlers(dp)
 
     match settings.USE_WEBHOOK:
         case True:

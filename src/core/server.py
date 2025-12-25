@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from core import get_logger
 from config import settings
-from handlers import setup_api_routers
+from api import setup_api_routers
 
 logger = get_logger(__name__)
 

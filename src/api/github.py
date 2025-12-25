@@ -3,8 +3,8 @@ from pprint import pprint
 from fastapi import APIRouter, Request
 
 from config import settings
-from handlers.api.models.github.events import PushEvent, CreateEvent, DeleteEvent
-from handlers.api.models.github.headers import WebhookHeaders
+from handlers.github.models.events import PushEvent, CreateEvent, DeleteEvent
+from handlers.github.models.headers import WebhookHeaders
 
 router = APIRouter(prefix="/github", tags=["github"])
 

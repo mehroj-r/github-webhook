@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Literal
 from pydantic import HttpUrl
 
-from .shared import User, Repository, Commit, Pusher
+from handlers.github.models.shared import User, Repository, Commit, Pusher
 
 
 class PushEvent(BaseModel):
@@ -13,18 +13,21 @@ class PushEvent(BaseModel):
     """
 
     ref: str
-    before: str
-    after: str
-    repository: Repository
-    pusher: Pusher
-    sender: User
-    created: bool
-    deleted: bool
-    forced: bool
     base_ref: Optional[str] = None
     compare: HttpUrl
     commits: List[Commit]
     head_commit: Optional[Commit] = None
+
+    before: str
+    after: str
+
+    repository: Repository
+    pusher: Pusher
+    sender: User
+
+    created: bool
+    deleted: bool
+    forced: bool
 
     @property
     def is_tag(self) -> bool:
@@ -45,16 +48,6 @@ class PushEvent(BaseModel):
             return self.ref.replace("refs/heads/", "")
         return self.ref
 
-    @property
-    def is_new_ref(self) -> bool:
-        """Check if this is creating a new tag or branch"""
-        return self.before == "0000000000000000000000000000000000000000"
-
-    @property
-    def is_deleted_ref(self) -> bool:
-        """Check if this is deleting a tag or branch"""
-        return self.after == "0000000000000000000000000000000000000000"
-
 
 class CreateEvent(BaseModel):
     """
@@ -64,8 +57,10 @@ class CreateEvent(BaseModel):
 
     ref: str
     ref_type: Literal["tag", "branch"]
+
     master_branch: str
     description: str
+
     pusher_type: Literal["user", "deploy_key"]
     repository: Repository
     sender: User
@@ -94,6 +89,7 @@ class DeleteEvent(BaseModel):
 
     ref: str
     ref_type: Literal["tag", "branch"]
+
     pusher_type: Literal["user", "deploy_key"]
     repository: Repository
     sender: User
