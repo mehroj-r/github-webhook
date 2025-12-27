@@ -30,7 +30,7 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
     # Create repository connection if not exists
     repo, created = await GithubRepository.get_or_create(
         session=session,
-        chat_id=chat.chat_id,
+        chat_id=chat.id,
         url=repo_url,
         defaults={
             "title": repo_url.lstrip("https://github.com/"),
