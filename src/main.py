@@ -15,7 +15,7 @@ server_task: Optional[asyncio.Task] = None
 
 
 async def main():
-    """Main entry point for the bot"""
+    """Main entry point for the application"""
     global server_task
 
     try:

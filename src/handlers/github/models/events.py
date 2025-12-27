@@ -6,7 +6,13 @@ from pydantic import HttpUrl
 from handlers.github.models.shared import User, Repository, Commit, Pusher
 
 
-class PushEvent(BaseModel):
+class BaseEvent(BaseModel):
+    """Base model for GitHub events"""
+
+    pass
+
+
+class PushEvent(BaseEvent):
     """
     Main model for GitHub push webhook events
     Triggered when a Git branch or tag is pushed
@@ -49,7 +55,7 @@ class PushEvent(BaseModel):
         return self.ref
 
 
-class CreateEvent(BaseModel):
+class CreateEvent(BaseEvent):
     """
     GitHub create webhook event
     Triggered when a Git branch or tag is created
@@ -81,7 +87,7 @@ class CreateEvent(BaseModel):
         return self.ref
 
 
-class DeleteEvent(BaseModel):
+class DeleteEvent(BaseEvent):
     """
     GitHub delete webhook event
     Triggered when a Git branch or tag is deleted

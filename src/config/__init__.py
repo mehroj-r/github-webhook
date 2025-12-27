@@ -1,5 +1,5 @@
-from .settings import get_settings
+from .settings import _get_settings
 
-settings = get_settings()
+settings = _get_settings()
 
 __all__ = ["settings"]
