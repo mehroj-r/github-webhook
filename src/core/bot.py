@@ -5,14 +5,19 @@ from aiogram.enums import ParseMode
 from handlers.bot import setup_bot_handlers
 from config import settings
 from core import get_logger
+from core.middlewares import DatabaseMiddleware
 
 logger = get_logger(__name__)
 
 dp = Dispatcher()
+dp.message.middleware(DatabaseMiddleware())
 
 bot = Bot(
     token=settings.BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    default=DefaultBotProperties(
+        parse_mode=ParseMode.HTML,
+        link_preview_is_disabled=True,
+    ),
 )
 
 

@@ -1,0 +1,43 @@
+from aiogram import Router
+from aiogram.filters import Command
+from aiogram.types import Message
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.decorators import parse_command
+from database.models import Chat, GithubRepository
+from database.enums import ChatType
+from .validators.chat import ConnectRepoCommandValidator
+
+router = Router()
+
+
+@router.message(Command("connect_repo"))
+@parse_command(arguments=["repo_url"], validator=ConnectRepoCommandValidator())
+async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSession) -> None:
+
+    msg = await message.answer("🔗 Connecting chat to repository...")
+
+    # Create chat instance if not exists
+    chat, _ = await Chat.get_or_create(
+        session=session,
+        chat_id=message.chat.id,
+        defaults={
+            "chat_type": ChatType(message.chat.type),
+            "title": message.chat.title or message.from_user.first_name + " " + (message.from_user.last_name or ""),
+        },
+    )
+
+    # Create repository connection if not exists
+    repo, created = await GithubRepository.get_or_create(
+        session=session,
+        chat_id=chat.chat_id,
+        url=repo_url,
+        defaults={
+            "title": repo_url.lstrip("https://github.com/"),
+        },
+    )
+
+    if not created:
+        await msg.edit_text("ℹ️ This chat is already connected to the specified repository.")
+    else:
+        await msg.edit_text("✅ Repository connected successfully.")

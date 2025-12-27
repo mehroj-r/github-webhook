@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 async def start_fastapi_server():
     """Start the FastAPI server with uvicorn"""
     import uvicorn
-    from core.logger import get_logger_config
+    from core import get_logger_config
 
     logger_config = get_logger_config()
     logger.info(f"Starting FastAPI server on {settings.HOST}:{settings.PORT}")
