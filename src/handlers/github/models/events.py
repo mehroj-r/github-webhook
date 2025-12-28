@@ -54,6 +54,15 @@ class PushEvent(BaseEvent):
             return self.ref.replace("refs/heads/", "")
         return self.ref
 
+    @property
+    def ref_url(self) -> HttpUrl:
+        """Get the URL to the branch or tag in the repository"""
+        if self.is_tag:
+            return HttpUrl(f"{self.repository.html_url}/tree/{self.ref_name}")
+        elif self.is_branch:
+            return HttpUrl(f"{self.repository.html_url}/tree/{self.ref_name}")
+        return self.repository.html_url
+
 
 class CreateEvent(BaseEvent):
     """
