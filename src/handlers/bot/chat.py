@@ -23,7 +23,7 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
         chat_id=message.chat.id,
         defaults={
             "chat_type": ChatType(message.chat.type),
-            "title": message.chat.title or message.from_user.first_name + " " + (message.from_user.last_name or ""),
+            "title": message.chat.title or message.chat.full_name,
         },
     )
 
@@ -32,9 +32,6 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
         session=session,
         chat_id=chat.id,
         url=repo_url,
-        defaults={
-            "title": repo_url.lstrip("https://github.com/"),
-        },
     )
 
     if not created:
