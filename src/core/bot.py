@@ -36,7 +36,7 @@ async def init_bot():
 
 async def _init_with_webhook():
     """Initialize the bot with webhook"""
-    logger.info(f"Setting webhook to {settings.WEBHOOK_URL}")
+    logger.info(f"Setting webhook to {settings.WEBHOOK_URL}/telegram{settings.WEBHOOK_PATH}...")
     webhook_url = settings.WEBHOOK_URL + "/telegram" + settings.WEBHOOK_PATH
     await bot.set_webhook(
         url=webhook_url,

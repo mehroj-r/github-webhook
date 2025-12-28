@@ -1,6 +1,8 @@
 from functools import wraps
 
 from core import get_logger
+from core.enums import GHEventType
+from database import async_session_maker
 from handlers.bot.validators.base import BaseCommandValidator
 
 logger = get_logger(__name__)
@@ -48,3 +50,36 @@ def parse_command(arguments: list, validator: BaseCommandValidator):
         return wrapper
 
     return decorator
+
+
+class GitHubEventRegistry:
+    """Registry for GitHub event handlers"""
+
+    _registry = {}
+
+    @classmethod
+    def register(cls, event: GHEventType):
+
+        def decorator(handler):
+            @wraps(handler)
+            async def wrapper(*args, **kwargs):
+                async with async_session_maker() as session:
+                    kwargs["session"] = session
+                    try:
+                        result = await handler(*args, **kwargs)
+                        await session.commit()
+                        return result
+                    except Exception as e:
+                        logger.error("Error handling GitHub event: %s", e)
+                        await session.rollback()
+                        raise
+
+            cls._registry[event] = wrapper
+
+            return wrapper
+
+        return decorator
+
+    @classmethod
+    def get_handler(cls, event: GHEventType):
+        return cls._registry.get(event)
