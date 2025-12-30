@@ -1,0 +1,53 @@
+name: Build and Deploy (Production)
+
+on:
+  push:
+    branches: [production]
+  repository_dispatch:
+    types: [ trigger-deploy ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      LOCATION: ${{ secrets.LOCATION }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and save Docker image
+        run: |
+          docker build -t $CONTAINER_NAME:latest .
+          docker save $CONTAINER_NAME:latest | gzip > $CONTAINER_NAME.tar.gz
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Copy image to server
+        run: |
+          scp $CONTAINER_NAME.tar.gz \
+            $SSH_USER@$SSH_HOST:$LOCATION/images/
+
+      - name: Deploy on server
+        run: |
+          ssh $SSH_USER@$SSH_HOST << EOF
+            docker load -i $LOCATION/images/$CONTAINER_NAME.tar.gz
+            docker stop $CONTAINER_NAME || true
+            docker rm $CONTAINER_NAME || true
+            cd $LOCATION
+            docker compose -f docker-compose.prod.yml up -d 
+          EOF

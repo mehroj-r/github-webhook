@@ -1,0 +1,46 @@
+services:
+  database:
+    container_name: gh-webhook-db-prod
+    image: postgres:18-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${DB_PORT}:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      start_period: 10s
+      interval: 5s
+      retries: 5
+    networks:
+      - app-network
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  app:
+    container_name: gh-webhook-app-prod
+    build: .
+    entrypoint: /app/scripts/entrypoint.sh
+    ports:
+        - "127.0.0.1:${APP_PORT}:8000"
+    healthcheck:
+      test: [ "CMD-SHELL", "./scripts/healthcheck.sh" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    env_file:
+      - .env
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
