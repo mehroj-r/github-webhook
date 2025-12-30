@@ -1,4 +1,4 @@
-from .base import BaseCommandValidator
+from core.utils.command_validator import BaseCommandValidator
 
 
 class ConnectRepoCommandValidator(BaseCommandValidator):

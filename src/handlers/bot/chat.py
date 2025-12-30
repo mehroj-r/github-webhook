@@ -1,4 +1,4 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,3 +38,10 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
         await msg.edit_text("ℹ️ This chat is already connected to the specified repository.")
     else:
         await msg.edit_text("✅ Repository connected successfully.")
+
+
+@router.message(F.new_chat_members)
+async def handle_bot_added(message: Message):
+    for member in message.new_chat_members:
+        if member.is_bot and member.id == message.bot.id:
+            await message.answer("👋 Hello! Thanks for adding me to this chat.")

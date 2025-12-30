@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import get_logger
@@ -5,29 +7,52 @@ from core.bot import bot
 from core.decorators import GitHubEventRegistry
 from core.enums import GHEventType
 from core.utils.bot import send_message
-from database.models import GithubRepository, Chat
+from database.models import Chat
 from handlers.github.models.events import PushEvent
 
 logger = get_logger(__name__)
 
 
 @GitHubEventRegistry.register(event=GHEventType.PUSH)
-async def handle_push_event(event: PushEvent, session: AsyncSession):
+async def handle(event: PushEvent, session: AsyncSession) -> None:
     """Handle GitHub push events"""
 
-    repo = await GithubRepository.get(session=session, title=event.repository.full_name)
+    # Skip deleted or created refs
+    if any([event.deleted, event.created]):
+        return
 
-    if repo is None:
-        logger.warning("Repository %s not found in database. Ignoring push event.", event.repository.full_name)
+    # Get the chat ID associated with the repository
+    chat_id = await _get_chat_id(repo_name=event.repository.full_name, session=session)
+    if not chat_id:
         return
 
     logger.info("Handling push event for repository: %s", event.repository.full_name)
 
-    chat = await Chat.get(session=session, id=repo.chat_id)
+    # Build the commit message and inline buttons
+    message = await _build_commit_message(event=event)
+    buttons = await _build_inline_buttons(event=event)
 
-    if chat is None:
-        logger.warning("Chat with ID %s not found in database. Cannot send push notification.", event.chat_id)
-        return
+    await send_message(
+        bot=bot,
+        chat_id=chat_id,
+        text=message,
+        url_buttons=buttons,
+    )
+
+async def _get_chat_id(repo_name: str, session: AsyncSession) -> Optional[int]:
+    """Get the chat ID associated with the given repository name"""
+
+    chat = await Chat.get_by_repo(session, repo_name)
+
+    if not chat:
+        logger.error("Failed to get chat ID for repository %s", repo_name)
+        return None
+
+    return chat.chat_id
+
+
+async def _build_commit_message(event: PushEvent) -> str:
+    """Build a summary message for the commits in the push event"""
 
     # Build the push notification message
     commit_count = len(event.commits)
@@ -35,7 +60,7 @@ async def handle_push_event(event: PushEvent, session: AsyncSession):
 
     # Build commit details (show up to 3 commits)
     commit_details = []
-    for commit in event.commits[commit_count - 3 :]:
+    for commit in event.commits[commit_count - 3:]:
         # Get first line of commit message
         commit_msg = commit.message.split("\n")[0]
         if len(commit_msg) > 60:
@@ -66,14 +91,11 @@ async def handle_push_event(event: PushEvent, session: AsyncSession):
         f"{more_commits}"
     )
 
-    # URL buttons
-    buttons = [
+    return message
+
+async def _build_inline_buttons(event: PushEvent):
+    """Build inline URL buttons for the push event"""
+
+    return [
         ("📊 View Changes", str(event.compare)),
     ]
-
-    await send_message(
-        bot=bot,
-        chat_id=chat.chat_id,
-        text=message,
-        url_buttons=buttons,
-    )

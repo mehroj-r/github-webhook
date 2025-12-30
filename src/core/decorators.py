@@ -1,9 +1,14 @@
 from functools import wraps
+from typing import Callable, TYPE_CHECKING
+import inspect
 
 from core import get_logger
 from core.enums import GHEventType
 from database import async_session_maker
-from handlers.bot.validators.base import BaseCommandValidator
+from core.utils.command_validator import BaseCommandValidator
+
+if TYPE_CHECKING:
+    from handlers.github.models.events import BaseEvent
 
 logger = get_logger(__name__)
 
@@ -58,11 +63,30 @@ class GitHubEventRegistry:
     _registry = {}
 
     @classmethod
-    def register(cls, event: GHEventType):
+    def _extract_event_model(cls, handler: Callable) -> type["BaseEvent"]:
+        sig = inspect.signature(handler)
+        params = sig.parameters
 
-        def decorator(handler):
+        if "event" not in params:
+            raise ValueError(f"Handler {handler.__name__} must have an 'event' parameter")
+
+        event_param = params["event"]
+        if event_param.annotation == inspect.Parameter.empty:
+            raise ValueError(f"Handler {handler.__name__} must have a type hint for 'event' parameter")
+
+        return event_param.annotation
+
+    @classmethod
+    def register(cls, event: GHEventType) -> Callable:
+
+        def decorator(handler) -> Callable:
+
+            model = cls._extract_event_model(handler)
+
             @wraps(handler)
-            async def wrapper(*args, **kwargs):
+            async def wrapper(*args, **kwargs) -> None:
+
+                # Create a new database session for each event handling
                 async with async_session_maker() as session:
                     kwargs["session"] = session
                     try:
@@ -73,13 +97,20 @@ class GitHubEventRegistry:
                         logger.error("Error handling GitHub event: %s", e)
                         await session.rollback()
                         raise
-
-            cls._registry[event] = wrapper
+            
+            cls._registry[event] = {
+                "handler": wrapper,
+                "model": model,
+            }
 
             return wrapper
 
         return decorator
 
     @classmethod
-    def get_handler(cls, event: GHEventType):
-        return cls._registry.get(event)
+    def get_handler(cls, event: GHEventType) -> Callable:
+        return cls._registry.get(event, {}).get("handler")
+
+    @classmethod
+    def get_event_model(cls, event: GHEventType) -> "BaseEvent":
+        return cls._registry.get(event, {}).get("model")
