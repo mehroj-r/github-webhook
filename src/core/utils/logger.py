@@ -2,6 +2,11 @@ import logging.config
 import os
 from functools import lru_cache
 
+from config import settings
+
+# Determine log directory based on environment
+LOG_DIR = settings.LOG_DIR
+
 LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -31,7 +36,7 @@ LOGGING_CONFIG = {
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": "logs/app.log",
+            "filename": f"{LOG_DIR}/app.log",
             "formatter": "detailed",
             "level": "INFO",
             "maxBytes": 10485760,  # 10MB
@@ -39,11 +44,39 @@ LOGGING_CONFIG = {
         },
         "error_file": {
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": "logs/errors.log",
+            "filename": f"{LOG_DIR}/errors.log",
             "formatter": "detailed",
             "level": "ERROR",
             "maxBytes": 10485760,  # 10MB
             "backupCount": 5,
+        },
+        "gunicorn_access": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.getenv("GUNICORN_ACCESS_LOG", f"{LOG_DIR}/gunicorn_access.log"),
+            "formatter": "detailed",
+            "level": "INFO",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5,
+        },
+        "gunicorn_error": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.getenv("GUNICORN_ERROR_LOG", f"{LOG_DIR}/gunicorn_error.log"),
+            "formatter": "detailed",
+            "level": "INFO",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5,
+        },
+    },
+    "loggers": {
+        "gunicorn.error": {
+            "handlers": ["gunicorn_error", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "gunicorn.access": {
+            "handlers": ["gunicorn_access"],
+            "level": "INFO",
+            "propagate": False,
         },
     },
     "root": {
@@ -63,8 +96,8 @@ def get_logger(name: str) -> logging.Logger:
     :return: The singleton logger.
     """
     # Make sure the logs directory exists
-    if not os.path.exists("logs"):
-        os.makedirs("logs")
+    if not os.path.exists(LOG_DIR):
+        os.makedirs(LOG_DIR)
 
     # Configure the logging system
     logging.config.dictConfig(LOGGING_CONFIG)
@@ -76,8 +109,12 @@ def get_logger(name: str) -> logging.Logger:
 
 def get_logger_config() -> dict:
     """
-    Get the logging configuration for a specific logger.
+    Get the logging configuration for Gunicorn and application loggers.
 
     :return: The logging configuration dictionary.
     """
+    # Ensure logs directory exists
+    if not os.path.exists(LOG_DIR):
+        os.makedirs(LOG_DIR)
+
     return LOGGING_CONFIG

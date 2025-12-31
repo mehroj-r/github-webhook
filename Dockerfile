@@ -28,11 +28,14 @@ RUN groupadd --system --gid 999 nonroot \
 WORKDIR /app
 
 COPY --from=builder --chown=nonroot:nonroot /app /app
+COPY --chown=nonroot:nonroot ./gunicorn.conf.py /app/
 COPY --chown=nonroot:nonroot ./src /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
-    && chmod +x /app/scripts/*.sh
+    && chmod +x /app/scripts/*.sh \
+    && mkdir -p /app/logs \
+    && chown -R nonroot:nonroot /app/logs
 
 USER nonroot

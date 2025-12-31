@@ -6,6 +6,7 @@ from handlers.bot import setup_bot_handlers
 from config import settings
 from core import get_logger
 from core.middlewares import DatabaseMiddleware
+from core.decorators import distributed_lock
 
 logger = get_logger(__name__)
 
@@ -34,10 +35,23 @@ async def init_bot():
             await _init_with_polling()
 
 
+@distributed_lock("telegram_webhook_init")
 async def _init_with_webhook():
-    """Initialize the bot with webhook"""
-    logger.info(f"Setting webhook to {settings.WEBHOOK_URL}/telegram{settings.WEBHOOK_PATH}...")
+    """Initialize the bot with webhook (protected by distributed lock)"""
     webhook_url = settings.WEBHOOK_URL + "/telegram" + settings.WEBHOOK_PATH
+
+    # Double-check if webhook is already set
+    try:
+        webhook_info = await bot.get_webhook_info()
+        if webhook_info.url == webhook_url:
+            logger.info(f"Webhook already set to {webhook_url}. Skipping setup.")
+            return
+        logger.info(f"Current webhook: {webhook_info.url or 'None'}")
+    except Exception as e:
+        logger.warning(f"Could not get webhook info: {e}. Proceeding with setup.")
+
+    # Set the webhook
+    logger.info(f"Setting webhook to {webhook_url}...")
     await bot.set_webhook(
         url=webhook_url,
         drop_pending_updates=True,

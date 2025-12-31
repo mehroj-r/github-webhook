@@ -32,18 +32,59 @@ A Telegram bot integrated with FastAPI to receive GitHub webhooks and send notif
 
 ## Running the Bot
 
-### Polling Mode (Development)
+### Development (Polling Mode)
 ```bash
 python -m src.main
 ```
 
-Set `USE_WEBHOOK=false` in your `.env` file. The bot will use Telegram's long polling.
+Set `USE_WEBHOOK=false` in your `.env` file. The bot will use Telegram's long polling with a single process and auto-reload.
 
-### Webhook Mode (Production)
-Set `USE_WEBHOOK=true` in your `.env` file and run using one of the methods above. The bot will:
-1. Start a FastAPI server on the specified HOST and PORT
-2. Set up a webhook endpoint at `{WEBHOOK_URL}{WEBHOOK_PATH}`
-3. Listen for incoming webhook requests from Telegram
+### Production (Webhook Mode with Docker) - Recommended
+```bash
+# Build and start with Gunicorn + Uvicorn workers
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f app
+
+# Scale workers
+WORKERS=8 docker-compose up -d --build
+```
+
+Set `USE_WEBHOOK=true` in your `.env` file. The application will run with:
+- **Gunicorn** as the process manager
+- **Multiple Uvicorn workers** for ASGI support and async capabilities
+- Automatic database migrations on startup
+- Health checks and auto-restart
+
+### Production (Manual Deployment)
+```bash
+# Run migrations
+python -m manage migrate
+
+# Start with Gunicorn + Uvicorn workers
+gunicorn asgi:app \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --workers 4 \
+    --bind 0.0.0.0:8000 \
+    --config gunicorn.conf.py
+```
+
+## Production Features
+
+- ✅ **Multi-worker deployment** with Gunicorn + Uvicorn
+- ✅ **Async/ASGI support** for high performance
+- ✅ **Automatic worker restarts** to prevent memory leaks
+- ✅ **Graceful shutdowns** with zero downtime
+- ✅ **Horizontal scaling** by adjusting worker count
+- ✅ **Production-ready** logging and monitoring
+
+**Worker Configuration:**
+- Set `WORKERS` environment variable (default: 4)
+- Recommended: `(CPU cores × 2) + 1`
+- Each worker handles requests concurrently via async/await
+
+## FastAPI Endpoints
 
 The FastAPI server includes:
 - `/` - Root endpoint (health check)
@@ -52,12 +93,30 @@ The FastAPI server includes:
 
 ## Architecture
 
-The application integrates aiogram (Telegram bot framework) with FastAPI:
+The application supports two deployment modes:
 
-- **Polling Mode**: Only the aiogram bot runs, polling Telegram for updates
-- **Webhook Mode**: FastAPI server runs with uvicorn, handling incoming webhook requests and feeding them to the aiogram dispatcher
+### Development Mode (Polling)
+- Single process with aiogram bot
+- Long polling for Telegram updates
+- Auto-reload on code changes
+- Best for: Local development and testing
 
-Both the bot and server run in the same asyncio event loop, allowing seamless integration.
+### Production Mode (Webhook)
+- **Gunicorn** master process managing multiple workers
+- **Uvicorn workers** with ASGI support for async/await
+- FastAPI server handling GitHub and Telegram webhooks
+- Horizontal scaling via worker count
+- Best for: Production deployment with high traffic
+
+```
+Gunicorn Master
+├── Uvicorn Worker 1 (FastAPI + Bot)
+├── Uvicorn Worker 2 (FastAPI + Bot)
+├── Uvicorn Worker 3 (FastAPI + Bot)
+└── Uvicorn Worker 4 (FastAPI + Bot)
+```
+
+Each worker runs independently, handling requests concurrently with async capabilities.
 
 ## Development
 

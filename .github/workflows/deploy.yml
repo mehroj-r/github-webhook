@@ -49,5 +49,5 @@ jobs:
             docker stop $CONTAINER_NAME || true
             docker rm $CONTAINER_NAME || true
             cd $LOCATION
-            docker compose -f docker-compose.prod.yml up -d 
+            docker compose up -d 
           EOF

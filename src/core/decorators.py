@@ -2,6 +2,8 @@ from functools import wraps
 from typing import Callable, TYPE_CHECKING
 import inspect
 
+from sqlalchemy import text
+
 from core import get_logger
 from core.enums import GHEventType
 from database import async_session_maker
@@ -11,6 +13,57 @@ if TYPE_CHECKING:
     from handlers.github.models.events import BaseEvent
 
 logger = get_logger(__name__)
+
+
+def distributed_lock(lock_name: str):
+    """
+    Decorator to ensure only one worker executes the function at a time using PostgreSQL advisory locks.
+
+    Args:
+        lock_name: A unique string identifier for the lock (will be hashed to an integer)
+
+    Usage:
+        @distributed_lock("webhook_init")
+        async def setup_webhook():
+            # Only one worker will execute this at a time
+            ...
+    """
+    # Generate a consistent 32-bit integer lock ID from the lock name
+    lock_id = hash(lock_name) % (2**31)
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            async with async_session_maker() as session:
+                lock_acquired = False
+                try:
+                    # Try to acquire advisory lock (non-blocking)
+                    result = await session.execute(
+                        text("SELECT pg_try_advisory_lock(:lock_id)"),
+                        {"lock_id": lock_id}
+                    )
+                    lock_acquired = result.scalar()
+
+                    if lock_acquired:
+                        logger.info(f"Acquired distributed lock '{lock_name}' (ID: {lock_id})")
+                        # Execute the function
+                        return await func(*args, **kwargs)
+                    else:
+                        # Another worker is handling this task
+                        logger.info(f"Lock '{lock_name}' already held by another worker. Skipping execution.")
+                        return None
+
+                finally:
+                    # Release the advisory lock if we acquired it
+                    if lock_acquired:
+                        await session.execute(
+                            text("SELECT pg_advisory_unlock(:lock_id)"),
+                            {"lock_id": lock_id}
+                        )
+                        logger.debug(f"Released distributed lock '{lock_name}' (ID: {lock_id})")
+
+        return wrapper
+    return decorator
 
 
 def parse_command(arguments: list, validator: BaseCommandValidator):

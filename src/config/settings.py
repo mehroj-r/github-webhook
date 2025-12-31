@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     # General Settings
     APP_NAME: str = "Github Webhook Bot"
     DEBUG: bool = False
+    LOG_DIR: str = "logs"
 
     # Telegram Bot Settings
     BOT_TOKEN: str = ""
