@@ -58,7 +58,7 @@ limit_request_field_size = 8190
 def on_starting(server):
     """Called just before the master process is initialized."""
     # Ensure logs directory exists
-    log_dir = os.getenv("GUNICORN_LOG_DIR")
+    log_dir = os.getenv("LOG_DIR")
     os.makedirs(log_dir, exist_ok=True)
     print(f"Starting Gunicorn with {workers} Uvicorn workers")
     print(f"Access log: {accesslog}")

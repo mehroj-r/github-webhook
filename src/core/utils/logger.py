@@ -4,8 +4,8 @@ from functools import lru_cache
 
 from config import settings
 
-# Determine log directory based on environment
 LOG_DIR = settings.LOG_DIR
+os.makedirs(LOG_DIR, exist_ok=True)
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -95,13 +95,9 @@ def get_logger(name: str) -> logging.Logger:
 
     :return: The singleton logger.
     """
-    # Make sure the logs directory exists
-    if not os.path.exists(LOG_DIR):
-        os.makedirs(LOG_DIR)
 
     # Configure the logging system
     logging.config.dictConfig(LOGGING_CONFIG)
-
     logger = logging.getLogger(name)
 
     return logger
@@ -113,8 +109,5 @@ def get_logger_config() -> dict:
 
     :return: The logging configuration dictionary.
     """
-    # Ensure logs directory exists
-    if not os.path.exists(LOG_DIR):
-        os.makedirs(LOG_DIR)
 
     return LOGGING_CONFIG
