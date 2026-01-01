@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Callable, TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING, Awaitable, Optional
 import inspect
 
 from sqlalchemy import text
@@ -8,6 +8,7 @@ from core import get_logger
 from core.enums import GHEventType
 from database import async_session_maker
 from core.utils.command_validator import BaseCommandValidator
+from handlers.github.events.base import EventHandler
 
 if TYPE_CHECKING:
     from handlers.github.models.events import BaseEvent
@@ -38,10 +39,7 @@ def distributed_lock(lock_name: str):
                 lock_acquired = False
                 try:
                     # Try to acquire advisory lock (non-blocking)
-                    result = await session.execute(
-                        text("SELECT pg_try_advisory_lock(:lock_id)"),
-                        {"lock_id": lock_id}
-                    )
+                    result = await session.execute(text("SELECT pg_try_advisory_lock(:lock_id)"), {"lock_id": lock_id})
                     lock_acquired = result.scalar()
 
                     if lock_acquired:
@@ -56,13 +54,11 @@ def distributed_lock(lock_name: str):
                 finally:
                     # Release the advisory lock if we acquired it
                     if lock_acquired:
-                        await session.execute(
-                            text("SELECT pg_advisory_unlock(:lock_id)"),
-                            {"lock_id": lock_id}
-                        )
+                        await session.execute(text("SELECT pg_advisory_unlock(:lock_id)"), {"lock_id": lock_id})
                         logger.debug(f"Released distributed lock '{lock_name}' (ID: {lock_id})")
 
         return wrapper
+
     return decorator
 
 
@@ -150,7 +146,7 @@ class GitHubEventRegistry:
                         logger.error("Error handling GitHub event: %s", e)
                         await session.rollback()
                         raise
-            
+
             cls._registry[event] = {
                 "handler": wrapper,
                 "model": model,
@@ -161,9 +157,9 @@ class GitHubEventRegistry:
         return decorator
 
     @classmethod
-    def get_handler(cls, event: GHEventType) -> Callable:
+    def get_handler(cls, event: GHEventType) -> Optional[EventHandler]:
         return cls._registry.get(event, {}).get("handler")
 
     @classmethod
-    def get_event_model(cls, event: GHEventType) -> "BaseEvent":
+    def get_event_model(cls, event: GHEventType) -> Optional["BaseEvent"]:
         return cls._registry.get(event, {}).get("model")

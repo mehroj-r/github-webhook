@@ -1,4 +1,4 @@
-from typing import Optional, Callable
+from typing import Optional, Callable, Awaitable
 
 from pydantic import BaseModel, Field
 from fastapi import Request, HTTPException
@@ -25,7 +25,7 @@ class WebhookHeaders(BaseModel):
 
         return GitHubEventRegistry.get_event_model(event=self.event_type)
 
-    def get_event_handler(self) -> Optional[Callable[[BaseEvent], None]]:
+    def get_event_handler(self):
         """Get the corresponding event handler for the event type."""
         from core.decorators import GitHubEventRegistry
 
