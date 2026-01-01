@@ -22,8 +22,13 @@ class GithubRepository(Base, TimestampMixin):
     chat: Mapped["Chat"] = relationship(back_populates="repositories")
 
     @validates("url")
-    def generate_title_from_url(self, key, url):
-        """Automatically generate title from URL when URL is set."""
+    def process_url(self, key, url):
+        """Validate and process the GitHub repository URL"""
+
+        # Normalize URL by removing trailing slash
+        url.rstrip("/")
+
+        # Auto-generate title from URL if not provided
         if url and not self.title:
             self.title = url.strip().removeprefix("https://github.com/")
         return url
