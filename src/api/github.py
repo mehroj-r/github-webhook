@@ -32,7 +32,7 @@ async def github_webhook(request: Request):
 
     # Parse request body
     try:
-        payload = await request.json()
+        payload = headers.extract_payload(request)
     except Exception as e:
         logger.error("Failed to parse request body: %s", e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON payload")
