@@ -178,3 +178,31 @@ class Pusher(BaseModel):
 
     name: str
     email: str
+
+
+class LastResponse(BaseModel):
+    code: Optional[int]
+    status: Optional[str]
+    message: Optional[str]
+
+
+class HookConfig(BaseModel):
+    content_type: str
+    insecure_ssl: str
+    url: str
+
+
+class Hook(BaseModel):
+    type: str
+    id: int
+    name: str
+    active: bool
+    events: List[str]
+    config: HookConfig
+    updated_at: datetime
+    created_at: datetime
+    url: str
+    test_url: str
+    ping_url: str
+    deliveries_url: str
+    last_response: LastResponse

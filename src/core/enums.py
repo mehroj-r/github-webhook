@@ -2,6 +2,7 @@ from enum import Enum
 
 
 class GHEventType(str, Enum):
+    PING = "ping"
     PUSH = "push"
     CREATE = "create"
     DELETE = "delete"

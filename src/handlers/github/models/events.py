@@ -3,13 +3,26 @@ from pydantic import BaseModel
 from typing import List, Optional, Literal
 from pydantic import HttpUrl
 
-from handlers.github.models.shared import User, Repository, Commit, Pusher
+from handlers.github.models.shared import User, Repository, Commit, Pusher, Hook
 
 
 class BaseEvent(BaseModel):
     """Base model for GitHub events"""
 
     pass
+
+
+class PingEvent(BaseEvent):
+    """
+    Model for GitHub ping webhook events
+    Triggered when a webhook is created or updated
+    """
+
+    zen: str
+    hook_id: int
+    hook: Hook
+    repository: Repository
+    sender: User
 
 
 class PushEvent(BaseEvent):
