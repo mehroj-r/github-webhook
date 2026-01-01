@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Callable, TYPE_CHECKING, Awaitable, Optional
+from typing import Callable, TYPE_CHECKING, Optional
 import inspect
 
 from sqlalchemy import text
@@ -8,9 +8,9 @@ from core import get_logger
 from core.enums import GHEventType
 from database import async_session_maker
 from core.utils.command_validator import BaseCommandValidator
-from handlers.github.events.base import EventHandler
 
 if TYPE_CHECKING:
+    from handlers.github.events.base import EventHandler
     from handlers.github.models.events import BaseEvent
 
 logger = get_logger(__name__)
@@ -157,7 +157,7 @@ class GitHubEventRegistry:
         return decorator
 
     @classmethod
-    def get_handler(cls, event: GHEventType) -> Optional[EventHandler]:
+    def get_handler(cls, event: GHEventType) -> Optional["EventHandler"]:
         return cls._registry.get(event, {}).get("handler")
 
     @classmethod
