@@ -1,12 +1,10 @@
-from typing import Optional
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.bot import bot
 from core.decorators import GitHubEventRegistry, logger
 from core.enums import GHEventType
 from core.utils.bot import send_message
-from database.models import Chat
+from database.models import Chat, GithubRepository
 from handlers.github.models.events import PingEvent
 
 
@@ -14,13 +12,32 @@ from handlers.github.models.events import PingEvent
 async def handle(event: PingEvent, session: AsyncSession) -> None:
     """Handle GitHub ping events"""
 
-    chat_id = await _get_chat_id(event.repository.full_name, session)
+    logger.info(f"Received ping event for repository: {event.repository.full_name}")
 
-    if not chat_id:
-        logger.warning(f"Couldn't find chat registered for {event.repository.full_name}")
+    repo, created = await GithubRepository.get_or_create(
+        session=session,
+        title=event.repository.full_name,
+        defaults={
+            "url": event.repository.html_url,
+            "chat_id": None,
+        },
+    )
+
+    if created:
+        logger.info(f"Registered new repository from ping event: {repo.title}")
         return
 
-    logger.info(f"Received ping event for repository: {event.repository.full_name}")
+    # Check if repository has an associated chat
+    if repo.chat_id is None:
+        logger.warning(f"Repository {repo.title} has no associated chat ID")
+        return
+
+    # Get the chat associated with the repository
+    chat = await Chat.get(session, id=repo.chat_id)
+
+    if chat is None:
+        logger.error(f"Chat with ID {repo.chat_id} not found for repository {repo.title}")
+        return
 
     # Build the commit message and inline buttons
     message = await _build_commit_message(event)
@@ -28,22 +45,10 @@ async def handle(event: PingEvent, session: AsyncSession) -> None:
 
     await send_message(
         bot=bot,
-        chat_id=chat_id,
+        chat_id=chat.chat_id,
         text=message,
         url_buttons=buttons,
     )
-
-
-async def _get_chat_id(repo_name: str, session: AsyncSession) -> Optional[int]:
-    """Get the chat ID associated with the given repository name"""
-
-    chat = await Chat.get_by_repo(session, repo_name)
-
-    if not chat:
-        logger.error("Failed to get chat ID for repository %s", repo_name)
-        return None
-
-    return chat.chat_id
 
 
 async def _build_commit_message(event: PingEvent) -> str:

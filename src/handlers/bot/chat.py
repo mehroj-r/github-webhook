@@ -17,8 +17,20 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
 
     msg = await message.answer("🔗 Connecting chat to repository...")
 
+    # Check if this repository ever pinged via webhook
+    repo = await GithubRepository.get(
+        session=session,
+        url=repo_url,
+    )
+
+    if not repo:
+        await msg.edit_text(
+            "❌ This repository is not registered. Please ensure that the repository has been added via webhook before connecting."
+        )
+        return
+
     # Create chat instance if not exists
-    chat, _ = await Chat.get_or_create(
+    chat, created = await Chat.get_or_create(
         session=session,
         chat_id=message.chat.id,
         defaults={
@@ -27,16 +39,16 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
         },
     )
 
-    # Create repository connection if not exists
-    repo, created = await GithubRepository.get_or_create(
-        session=session,
-        chat_id=chat.id,
-        url=repo_url,
-    )
+    if repo.chat_id != chat.id:
+        await msg.edit_text(
+            "❌ This repository is already connected to another chat. "
+            "Please disconnect it from the current chat before connecting to a new one."
+        )
 
     if not created:
         await msg.edit_text("ℹ️ This chat is already connected to the specified repository.")
     else:
+        await repo.update(session=session, chat_id=chat.id)
         await msg.edit_text("✅ Repository connected successfully.")
 
 

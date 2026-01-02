@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
 from sqlalchemy import String, ForeignKey
@@ -16,7 +16,7 @@ class GithubRepository(Base, TimestampMixin):
 
     title: Mapped[str] = mapped_column(String(255), unique=True)
     url: Mapped[str] = mapped_column(String(500))
-    chat_id: Mapped[UUID] = mapped_column(ForeignKey("tg_chats.id"))
+    chat_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("tg_chats.id"), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
 
     chat: Mapped["Chat"] = relationship(back_populates="repositories")

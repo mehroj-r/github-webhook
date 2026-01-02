@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import BigInteger, String, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -22,7 +22,7 @@ class Chat(Base, TimestampMixin):
     repositories: Mapped[list["GithubRepository"]] = relationship(back_populates="chat")
 
     @classmethod
-    async def get_by_repo(cls, session, repo_name: str):
+    async def get_by_repo(cls, session, repo_name: str) -> Optional["Chat"]:
         """Get the chat associated with the given repository name"""
         from sqlalchemy import select
 
