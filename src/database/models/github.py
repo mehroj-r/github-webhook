@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
+from pydantic import HttpUrl
 from sqlalchemy import String, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
@@ -22,11 +23,11 @@ class GithubRepository(Base, TimestampMixin):
     chat: Mapped["Chat"] = relationship(back_populates="repositories")
 
     @validates("url")
-    def process_url(self, key, url):
+    def process_url(self, key, url: HttpUrl) -> Optional[str]:
         """Validate and process the GitHub repository URL"""
 
         # Normalize URL by removing trailing slash
-        url.rstrip("/")
+        url = str(url).rstrip("/")
 
         # Auto-generate title from URL if not provided
         if url and not self.title:
