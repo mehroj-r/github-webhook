@@ -1,26 +1,25 @@
-from .base import Command, CommandRegistry
-from .db import (
-    MakeMigrationsCommand,
-    MigrateCommand,
-    DowngradeCommand,
-    CurrentCommand,
-    HistoryCommand,
-)
-from .server import RunServerCommand, ShellCommand
-from .db_utils import CreateDBCommand, DropDBCommand, ResetDBCommand, ShowTablesCommand
+import pkgutil
+import importlib
+import inspect
 
-__all__ = [
-    "Command",
-    "CommandRegistry",
-    "MakeMigrationsCommand",
-    "MigrateCommand",
-    "DowngradeCommand",
-    "CurrentCommand",
-    "HistoryCommand",
-    "RunServerCommand",
-    "ShellCommand",
-    "CreateDBCommand",
-    "DropDBCommand",
-    "ResetDBCommand",
-    "ShowTablesCommand",
-]
+__all__ = []
+
+for module_info in pkgutil.iter_modules(__path__):
+    module_name = module_info.name
+    if module_name.startswith("_"):
+        continue
+
+    module = importlib.import_module(f"{__name__}.{module_name}")
+
+    for name, obj in inspect.getmembers(module, inspect.isclass):
+        # must be defined in THIS module (not imported)
+        if obj.__module__ != module.__name__:
+            continue
+
+        # skip private classes
+        if name.startswith("_"):
+            continue
+
+        # expose class at package level
+        globals()[name] = obj
+        __all__.append(name)

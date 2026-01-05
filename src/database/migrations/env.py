@@ -1,6 +1,6 @@
 import asyncio
+import logging.config
 import sys
-from logging.config import fileConfig
 from pathlib import Path
 
 from sqlalchemy import pool
@@ -20,11 +20,16 @@ from config import settings
 # Import all models so they are registered with SQLAlchemy
 from database.models import Chat, GithubRepository  # noqa: F401
 
+# Import and configure custom logger
+from core.utils.logger import get_logger_config
+import logging.config
+
+# Configure logging using custom logger config
+logging.config.dictConfig(get_logger_config())
+
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.replace("%", "%%"))
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
 

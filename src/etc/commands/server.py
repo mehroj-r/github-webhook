@@ -3,7 +3,10 @@
 import asyncio
 import sys
 
+from core.utils.logger import get_logger
 from .base import Command, CommandRegistry
+
+logger = get_logger(__name__)
 
 
 @CommandRegistry.register
@@ -34,7 +37,7 @@ class RunServerCommand(Command):
         """Run the server"""
         from main import main as run_main
 
-        print("🚀 Starting application...")
+        logger.info("Starting application...")
 
         # Override settings if provided
         if host or port:
@@ -46,16 +49,16 @@ class RunServerCommand(Command):
                 config_settings.PORT = port
 
         if reload:
-            print("⚠️  Auto-reload mode requires manual setup with uvicorn")
-            print("Run: uvicorn main:app --reload")
+            logger.warning("Auto-reload mode requires manual setup with uvicorn")
+            logger.info("Run: uvicorn main:app --reload")
             return
 
         try:
             asyncio.run(run_main())
         except KeyboardInterrupt:
-            print("\n👋 Shutting down...")
+            logger.info("\nShutting down...")
         except Exception as e:
-            print(f"❌ Error running server: {e}")
+            logger.error(f"Error running server: {e}")
             sys.exit(1)
 
 
@@ -89,9 +92,11 @@ Available objects:
 
 Example usage:
   async with async_session_maker() as session:
-      result = await session.execute(select(Chat))
+      result = await session.execute(select(models.Chat))
       chats = result.scalars().all()
 """
+
+        logger.info("Starting interactive shell...")
 
         local_vars = {
             "settings": settings,

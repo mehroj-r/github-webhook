@@ -4,7 +4,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+from core.utils.logger import get_logger
 from .base import Command, CommandRegistry
+
+logger = get_logger(__name__)
 
 
 @CommandRegistry.register
@@ -31,14 +34,14 @@ class MakeMigrationsCommand(Command):
 
     def handle(self, message: str = None, autogenerate: bool = True, **kwargs) -> None:
         """Generate a new migration"""
-        print("🔄 Generating migration...")
+        logger.info("Generating migration...")
 
         # Get the database directory path
         db_dir = Path(__file__).resolve().parents[2] / "database"
         alembic_ini = db_dir / "alembic.ini"
 
         if not alembic_ini.exists():
-            print(f"❌ Error: alembic.ini not found at {alembic_ini}")
+            logger.error(f"alembic.ini not found at {alembic_ini}")
             sys.exit(1)
 
         # Build the alembic command
@@ -54,16 +57,17 @@ class MakeMigrationsCommand(Command):
 
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            print(result.stdout)
+            if result.stdout:
+                logger.info(result.stdout)
             if result.stderr:
-                print(result.stderr)
-            print("✅ Migration generated successfully!")
+                logger.warning(result.stderr)
+            logger.info("Migration generated successfully!")
         except subprocess.CalledProcessError as e:
-            print(f"❌ Error generating migration: {e}")
+            logger.error(f"Error generating migration: {e}")
             if e.stdout:
-                print(e.stdout)
+                logger.error(e.stdout)
             if e.stderr:
-                print(e.stderr)
+                logger.error(e.stderr)
             sys.exit(1)
 
 
@@ -85,29 +89,30 @@ class MigrateCommand(Command):
 
     def handle(self, revision: str = "head", **kwargs) -> None:
         """Apply migrations"""
-        print(f"🔄 Applying migrations to {revision}...")
+        logger.info(f"Applying migrations to {revision}...")
 
         db_dir = Path(__file__).resolve().parents[2] / "database"
         alembic_ini = db_dir / "alembic.ini"
 
         if not alembic_ini.exists():
-            print(f"❌ Error: alembic.ini not found at {alembic_ini}")
+            logger.error(f"alembic.ini not found at {alembic_ini}")
             sys.exit(1)
 
         cmd = ["alembic", "-c", str(alembic_ini), "upgrade", revision]
 
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            print(result.stdout)
+            if result.stdout:
+                logger.info(result.stdout)
             if result.stderr:
-                print(result.stderr)
-            print("✅ Migrations applied successfully!")
+                logger.warning(result.stderr)
+            logger.info("Migrations applied successfully!")
         except subprocess.CalledProcessError as e:
-            print(f"❌ Error applying migrations: {e}")
+            logger.error(f"Error applying migrations: {e}")
             if e.stdout:
-                print(e.stdout)
+                logger.error(e.stdout)
             if e.stderr:
-                print(e.stderr)
+                logger.error(e.stderr)
             sys.exit(1)
 
 
@@ -129,29 +134,30 @@ class DowngradeCommand(Command):
 
     def handle(self, revision: str = "-1", **kwargs) -> None:
         """Downgrade migrations"""
-        print(f"🔄 Downgrading to {revision}...")
+        logger.info(f"Downgrading to {revision}...")
 
         db_dir = Path(__file__).resolve().parents[2] / "database"
         alembic_ini = db_dir / "alembic.ini"
 
         if not alembic_ini.exists():
-            print(f"❌ Error: alembic.ini not found at {alembic_ini}")
+            logger.error(f"alembic.ini not found at {alembic_ini}")
             sys.exit(1)
 
         cmd = ["alembic", "-c", str(alembic_ini), "downgrade", revision]
 
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            print(result.stdout)
+            if result.stdout:
+                logger.info(result.stdout)
             if result.stderr:
-                print(result.stderr)
-            print("✅ Downgrade completed successfully!")
+                logger.warning(result.stderr)
+            logger.info("Downgrade completed successfully!")
         except subprocess.CalledProcessError as e:
-            print(f"❌ Error during downgrade: {e}")
+            logger.error(f"Error during downgrade: {e}")
             if e.stdout:
-                print(e.stdout)
+                logger.error(e.stdout)
             if e.stderr:
-                print(e.stderr)
+                logger.error(e.stderr)
             sys.exit(1)
 
 
@@ -172,13 +178,13 @@ class CurrentCommand(Command):
 
     def handle(self, verbose: bool = False, **kwargs) -> None:
         """Show current revision"""
-        print("🔍 Checking current migration revision...")
+        logger.info("Checking current migration revision...")
 
         db_dir = Path(__file__).resolve().parents[2] / "database"
         alembic_ini = db_dir / "alembic.ini"
 
         if not alembic_ini.exists():
-            print(f"❌ Error: alembic.ini not found at {alembic_ini}")
+            logger.error(f"alembic.ini not found at {alembic_ini}")
             sys.exit(1)
 
         cmd = ["alembic", "-c", str(alembic_ini), "current"]
@@ -187,15 +193,16 @@ class CurrentCommand(Command):
 
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            print(result.stdout)
+            if result.stdout:
+                logger.info(result.stdout)
             if result.stderr:
-                print(result.stderr)
+                logger.warning(result.stderr)
         except subprocess.CalledProcessError as e:
-            print(f"❌ Error: {e}")
+            logger.error(f"Error: {e}")
             if e.stdout:
-                print(e.stdout)
+                logger.error(e.stdout)
             if e.stderr:
-                print(e.stderr)
+                logger.error(e.stderr)
             sys.exit(1)
 
 
@@ -216,13 +223,13 @@ class HistoryCommand(Command):
 
     def handle(self, range: str = None, **kwargs) -> None:
         """Show migration history"""
-        print("📜 Migration history:")
+        logger.info("Migration history:")
 
         db_dir = Path(__file__).resolve().parents[2] / "database"
         alembic_ini = db_dir / "alembic.ini"
 
         if not alembic_ini.exists():
-            print(f"❌ Error: alembic.ini not found at {alembic_ini}")
+            logger.error(f"alembic.ini not found at {alembic_ini}")
             sys.exit(1)
 
         cmd = ["alembic", "-c", str(alembic_ini), "history"]
@@ -231,13 +238,14 @@ class HistoryCommand(Command):
 
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            print(result.stdout)
+            if result.stdout:
+                logger.info(result.stdout)
             if result.stderr:
-                print(result.stderr)
+                logger.warning(result.stderr)
         except subprocess.CalledProcessError as e:
-            print(f"❌ Error: {e}")
+            logger.error(f"Error: {e}")
             if e.stdout:
-                print(e.stdout)
+                logger.error(e.stdout)
             if e.stderr:
-                print(e.stderr)
+                logger.error(e.stderr)
             sys.exit(1)

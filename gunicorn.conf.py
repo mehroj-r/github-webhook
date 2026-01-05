@@ -1,7 +1,9 @@
 import multiprocessing
 import os
 
-from core import get_logger_config
+from core import get_logger_config, get_logger
+
+logger = get_logger(__name__)
 
 # Server Socket
 bind = f"{os.getenv('HOST', '0.0.0.0')}:{os.getenv('PORT', '8000')}"
@@ -60,31 +62,31 @@ def on_starting(server):
     # Ensure logs directory exists
     log_dir = os.getenv("LOG_DIR")
     os.makedirs(log_dir, exist_ok=True)
-    print(f"Starting Gunicorn with {workers} Uvicorn workers")
-    print(f"Access log: {accesslog}")
-    print(f"Error log: {errorlog}")
+    logger.info(f"Starting Gunicorn with {workers} Uvicorn workers")
+    logger.info(f"Access log: {accesslog}")
+    logger.info(f"Error log: {errorlog}")
 
 
 def on_reload(server):
     """Called to recycle workers during a reload via SIGHUP."""
-    print("Reloading Gunicorn...")
+    logger.info("Reloading Gunicorn...")
 
 
 def when_ready(server):
     """Called just after the server is started."""
-    print(f"Gunicorn is ready. Listening on {bind}")
+    logger.info(f"Gunicorn is ready. Listening on {bind}")
 
 
 def on_exit(server):
     """Called just before exiting Gunicorn."""
-    print("Shutting down Gunicorn...")
+    logger.info("Shutting down Gunicorn...")
 
 
 def worker_int(worker):
     """Called just after a worker exited on SIGINT or SIGQUIT."""
-    print(f"Worker {worker.pid} received SIGINT/SIGQUIT")
+    logger.info(f"Worker {worker.pid} received SIGINT/SIGQUIT")
 
 
 def worker_abort(worker):
     """Called when a worker received the SIGABRT signal."""
-    print(f"Worker {worker.pid} received SIGABRT")
+    logger.info(f"Worker {worker.pid} received SIGABRT")
