@@ -63,6 +63,8 @@ def on_starting(_):
     log_dir = os.getenv("LOG_DIR")
     os.makedirs(log_dir, exist_ok=True)
     logger.info(f"Starting Gunicorn with {workers} Uvicorn workers")
+    logger.info(f"Access log: {accesslog}")
+    logger.info(f"Error log: {errorlog}")
 
 
 def on_reload(_):
