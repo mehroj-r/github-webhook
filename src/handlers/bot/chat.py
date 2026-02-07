@@ -30,7 +30,7 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
         return
 
     # Create chat instance if not exists
-    chat, created = await Chat.get_or_create(
+    chat, _ = await Chat.get_or_create(
         session=session,
         chat_id=message.chat.id,
         defaults={
@@ -39,17 +39,21 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
         },
     )
 
+    if not repo.chat_id:
+        await repo.update(session=session, chat_id=chat.id)
+        await msg.edit_text("✅ Repository connected successfully.")
+        return
+
     if repo.chat_id != chat.id:
         await msg.edit_text(
             "❌ This repository is already connected to another chat. "
             "Please disconnect it from the current chat before connecting to a new one."
         )
+        return
 
-    if not created:
+    if repo.chat_id == chat.id:
         await msg.edit_text("ℹ️ This chat is already connected to the specified repository.")
-    else:
-        await repo.update(session=session, chat_id=chat.id)
-        await msg.edit_text("✅ Repository connected successfully.")
+        return
 
 
 @router.message(F.new_chat_members)
