@@ -1,7 +1,7 @@
 """Utility functions for GitHub webhook handling."""
 
 import json
-from typing import Dict, Any
+from typing import Any
 
 from config import settings
 from core import get_logger
@@ -11,8 +11,8 @@ logger = get_logger(__name__)
 
 async def send_unhandled_event_to_master(
     event_type: str,
-    headers: Dict[str, Any],
-    body: Dict[str, Any],
+    headers: dict[str, Any],
+    body: dict[str, Any],
 ) -> bool:
     """
     Send unhandled GitHub event details to the master chat for analysis and review.
@@ -52,10 +52,7 @@ async def send_unhandled_event_to_master(
 
         # Format body preview (limit size)
         body_json = json.dumps(body, indent=2)
-        if len(body_json) > 3000:
-            body_preview = body_json[:3000] + "\n... (truncated)"
-        else:
-            body_preview = body_json
+        body_preview = body_json if len(body_json) <= 3000 else body_json[:3000] + "\n... (truncated)"
 
         # Build the message
         message = (

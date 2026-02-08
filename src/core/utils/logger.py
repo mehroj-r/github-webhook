@@ -86,7 +86,7 @@ LOGGING_CONFIG = {
 }
 
 
-@lru_cache()
+@lru_cache
 def get_logger(name: str) -> logging.Logger:
     """
     Create and return a singleton logger with the specified name.

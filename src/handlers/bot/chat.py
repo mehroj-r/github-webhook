@@ -1,11 +1,11 @@
-from aiogram import Router, F
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
+from core.decorators import parse_command
+from database.enums import ChatType
+from database.models import Chat, GithubRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.decorators import parse_command
-from database.models import Chat, GithubRepository
-from database.enums import ChatType
 from .validators.chat import ConnectRepoCommandValidator
 
 router = Router()
@@ -14,7 +14,6 @@ router = Router()
 @router.message(Command("connect_repo"))
 @parse_command(arguments=["repo_url"], validator=ConnectRepoCommandValidator())
 async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSession) -> None:
-
     msg = await message.answer("🔗 Connecting chat to repository...")
 
     # Check if this repository ever pinged via webhook

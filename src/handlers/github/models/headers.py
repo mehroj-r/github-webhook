@@ -1,10 +1,7 @@
-from typing import Optional, Callable, Awaitable
-
-from pydantic import BaseModel, Field
-from fastapi import Request, HTTPException
-
-from core.enums import GHEventType, ContentType
+from core.enums import ContentType, GHEventType
+from fastapi import HTTPException, Request
 from handlers.github.models.events import BaseEvent
+from pydantic import BaseModel, Field
 
 
 class WebhookHeaders(BaseModel):
@@ -19,7 +16,7 @@ class WebhookHeaders(BaseModel):
     target_id: str = Field(..., alias="X-GitHub-Hook-Installation-Target-ID")
     content_type: ContentType = Field(..., alias="Content-Type")
 
-    def get_event_model(self) -> Optional[BaseEvent]:
+    def get_event_model(self) -> BaseEvent | None:
         """Get the corresponding event model class for the event type."""
         from core.decorators import GitHubEventRegistry
 

@@ -27,7 +27,6 @@ class BaseCommandValidator(ABC):
 
         # Then, validate each argument
         for arg, value in args_data.items():
-
             # Check if argument is valid
             if arg not in self.arguments:
                 logger.error(f"Argument {arg} is not valid.")

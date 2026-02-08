@@ -1,7 +1,7 @@
 import multiprocessing
 import os
 
-from core import get_logger_config, get_logger
+from core import get_logger, get_logger_config
 
 logger = get_logger("gunicorn")
 
@@ -57,7 +57,7 @@ limit_request_fields = 100
 limit_request_field_size = 8190
 
 
-def on_starting(server):
+def on_starting(_):
     """Called just before the master process is initialized."""
     # Ensure logs directory exists
     log_dir = os.getenv("LOG_DIR")
@@ -65,17 +65,17 @@ def on_starting(server):
     logger.info(f"Starting Gunicorn with {workers} Uvicorn workers")
 
 
-def on_reload(server):
+def on_reload(_):
     """Called to recycle workers during a reload via SIGHUP."""
     logger.info("Reloading Gunicorn...")
 
 
-def when_ready(server):
+def when_ready(_):
     """Called just after the server is started."""
     logger.info(f"Gunicorn is ready. Listening on {bind}")
 
 
-def on_exit(server):
+def on_exit(_):
     """Called just before exiting Gunicorn."""
     logger.info("Shutting down Gunicorn...")
 

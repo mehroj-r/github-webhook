@@ -30,7 +30,7 @@ class RunServerCommand(Command):
             help="Enable auto-reload on code changes",
         )
 
-    def handle(self, host: str = None, port: int = None, reload: bool = False, **kwargs) -> None:
+    def handle(self, host: str = None, port: int = None, reload: bool = False, **_) -> None:
         """Run the server"""
         from main import main as run_main
 
@@ -69,14 +69,14 @@ class ShellCommand(Command):
     def add_arguments(self, parser) -> None:
         pass
 
-    def handle(self, **kwargs) -> None:
+    def handle(self, **_) -> None:
         """Start interactive shell"""
         import code
 
         # Import commonly used modules
         from config import settings
-        from database.config import engine, async_session_maker
         from database import models
+        from database.config import async_session_maker, engine
 
         banner = """
 🐍 Python Shell - Application Context Loaded

@@ -1,13 +1,13 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class GHEventType(str, Enum):
+class GHEventType(StrEnum):
     PING = "ping"
     PUSH = "push"
     CREATE = "create"
     DELETE = "delete"
 
 
-class ContentType(str, Enum):
+class ContentType(StrEnum):
     JSON = "application/json"
     FORM_URLENCODED = "application/x-www-form-urlencoded"

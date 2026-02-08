@@ -20,16 +20,16 @@ class CreateDBCommand(Command):
             help="Drop existing tables before creating (use with caution!)",
         )
 
-    def handle(self, drop: bool = False, **kwargs) -> None:
+    def handle(self, drop: bool = False, **_) -> None:
         """Create database tables"""
         print("🔄 Creating database tables...")
 
         async def create_tables():
-            from database.models.base import Base
             from database.config import engine
 
             # Import all models to register them
             from database.models import Chat, GithubRepository  # noqa: F401
+            from database.models.base import Base
 
             async with engine.begin() as conn:
                 if drop:
@@ -62,7 +62,7 @@ class DropDBCommand(Command):
             help="Skip confirmation prompt",
         )
 
-    def handle(self, yes: bool = False, **kwargs) -> None:
+    def handle(self, yes: bool = False, **_) -> None:
         """Drop all database tables"""
         if not yes:
             response = input("⚠️  This will DELETE ALL TABLES. Are you sure? (yes/no): ")
@@ -73,11 +73,11 @@ class DropDBCommand(Command):
         print("🔄 Dropping all database tables...")
 
         async def drop_tables():
-            from database.models.base import Base
             from database.config import engine
 
             # Import all models to register them
             from database.models import Chat, GithubRepository  # noqa: F401
+            from database.models.base import Base
 
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.drop_all)
@@ -104,7 +104,7 @@ class ResetDBCommand(Command):
             help="Skip confirmation prompt",
         )
 
-    def handle(self, yes: bool = False, **kwargs) -> None:
+    def handle(self, yes: bool = False, **_) -> None:
         """Reset the database"""
         if not yes:
             response = input("⚠️  This will DELETE ALL DATA and recreate tables. Are you sure? (yes/no): ")
@@ -115,11 +115,11 @@ class ResetDBCommand(Command):
         print("🔄 Resetting database...")
 
         async def reset_database():
-            from database.models.base import Base
             from database.config import engine
 
             # Import all models to register them
             from database.models import Chat, GithubRepository  # noqa: F401
+            from database.models.base import Base
 
             async with engine.begin() as conn:
                 print("Dropping existing tables...")
@@ -149,17 +149,16 @@ class ShowTablesCommand(Command):
     def add_arguments(self, parser) -> None:
         pass
 
-    def handle(self, **kwargs) -> None:
+    def handle(self, **_) -> None:
         """Show all tables"""
         print("📋 Registered database tables:")
 
-        from database.models.base import Base
-
         # Import all models to register them
         from database.models import Chat, GithubRepository  # noqa: F401
+        from database.models.base import Base
 
         for table_name, table in Base.metadata.tables.items():
             print(f"\n  • {table_name}")
-            print(f"    Columns:")
+            print("    Columns:")
             for column in table.columns:
                 print(f"      - {column.name}: {column.type}")

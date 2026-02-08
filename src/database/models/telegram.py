@@ -1,17 +1,15 @@
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, String, Enum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from database.models.base import Base, TimestampMixin
 from database.enums import ChatType
+from database.models.base import Base, TimestampMixin
+from sqlalchemy import BigInteger, Enum, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from database.models.github import GithubRepository
 
 
 class Chat(Base, TimestampMixin):
-
     __tablename__ = "tg_chats"
 
     chat_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
@@ -24,12 +22,7 @@ class Chat(Base, TimestampMixin):
     @classmethod
     async def get_by_repo(cls, session, repo_name: str) -> Optional["Chat"]:
         """Get the chat associated with the given repository name"""
+        from database.models import GithubRepository
         from sqlalchemy import select
 
-        from database.models import GithubRepository
-
-        return await session.scalar(
-            select(cls)
-            .join(cls.repositories)
-            .where(GithubRepository.title == repo_name)
-        )
+        return await session.scalar(select(cls).join(cls.repositories).where(GithubRepository.title == repo_name))

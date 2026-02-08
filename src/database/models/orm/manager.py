@@ -1,4 +1,4 @@
-from typing import Optional, Self
+from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import DeclarativeBase
@@ -8,7 +8,7 @@ class BaseORMClass(DeclarativeBase):
     """Base class for ORM models."""
 
     @classmethod
-    async def get(cls, session: AsyncSession, **kwargs) -> Optional[Self]:
+    async def get(cls, session: AsyncSession, **kwargs) -> Self | None:
         """Get a single record matching the given criteria."""
         from sqlalchemy import select
 
@@ -34,7 +34,7 @@ class BaseORMClass(DeclarativeBase):
         return instance
 
     @classmethod
-    async def get_or_create(cls, session: AsyncSession, defaults: Optional[dict] = None, **kwargs) -> tuple[Self, bool]:
+    async def get_or_create(cls, session: AsyncSession, defaults: dict | None = None, **kwargs) -> tuple[Self, bool]:
         """Get an existing record or create a new one."""
         from sqlalchemy import select
 
@@ -53,7 +53,7 @@ class BaseORMClass(DeclarativeBase):
             return instance, True
 
     @classmethod
-    async def create_or_update(cls, session: AsyncSession, defaults: Optional[dict] = None, **kwargs) -> Self:
+    async def create_or_update(cls, session: AsyncSession, defaults: dict | None = None, **kwargs) -> Self:
         """Create a new record or update an existing one."""
         from sqlalchemy import select
 

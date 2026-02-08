@@ -1,7 +1,3 @@
-from typing import Optional
-
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core import get_logger
 from core.bot import bot
 from core.decorators import GitHubEventRegistry
@@ -9,6 +5,7 @@ from core.enums import GHEventType
 from core.utils.bot import send_message
 from database.models import Chat
 from handlers.github.models.events import PushEvent
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 
@@ -39,7 +36,8 @@ async def handle(event: PushEvent, session: AsyncSession) -> None:
         url_buttons=buttons,
     )
 
-async def _get_chat_id(repo_name: str, session: AsyncSession) -> Optional[int]:
+
+async def _get_chat_id(repo_name: str, session: AsyncSession) -> int | None:
     """Get the chat ID associated with the given repository name"""
 
     chat = await Chat.get_by_repo(session, repo_name)
@@ -60,7 +58,7 @@ async def _build_commit_message(event: PushEvent) -> str:
 
     # Build commit details (show up to 3 commits)
     commit_details = []
-    for commit in event.commits[commit_count - 3:]:
+    for commit in event.commits[commit_count - 3 :]:
         # Get first line of commit message
         commit_msg = commit.message.split("\n")[0]
         if len(commit_msg) > 60:
@@ -82,16 +80,20 @@ async def _build_commit_message(event: PushEvent) -> str:
     if commit_count > 3:
         more_commits = f"\n\n<i>... and {commit_count - 3} more commit{'s' if commit_count - 3 != 1 else ''}</i>"
 
+    # Indicate if this was a force push
+    force_text = " (force push)" if event.forced else ""
+
     message = (
         f"🚀 <b>Push to <a href='{event.repository.html_url}'>{event.repository.full_name}</a></b>\n"
         f"{branch_or_tag}: <a href='{event.ref_url}'>{event.ref_name}</a>\n"
-        f"👤 Pusher: <a href='{event.sender.html_url}'>{event.sender.login}</a>\n"
+        f"👤 Pusher: <a href='{event.sender.html_url}'>{event.sender.login}</a>{force_text}\n"
         f"📝 {commit_count} commit{'s' if commit_count != 1 else ''} [+{total_added} / -{total_removed} / ~{total_modified}]\n\n"
         f"{commits_text}"
         f"{more_commits}"
     )
 
     return message
+
 
 async def _build_inline_buttons(event: PushEvent):
     """Build inline URL buttons for the push event"""

@@ -1,13 +1,13 @@
 from .base import Command, CommandRegistry
 from .db import (
+    CurrentCommand,
+    DowngradeCommand,
+    HistoryCommand,
     MakeMigrationsCommand,
     MigrateCommand,
-    DowngradeCommand,
-    CurrentCommand,
-    HistoryCommand,
 )
-from .server import RunServerCommand, ShellCommand
 from .db_utils import CreateDBCommand, DropDBCommand, ResetDBCommand, ShowTablesCommand
+from .server import RunServerCommand, ShellCommand
 
 __all__ = [
     "Command",

@@ -3,7 +3,7 @@ Database package initialization.
 Exports main database components for easy access.
 """
 
-from database import models
+from database import enums, models
 from database.config import (
     async_session_maker,
     close_db,
@@ -11,7 +11,6 @@ from database.config import (
     get_db,
     init_db,
 )
-from database import enums
 
 __all__ = [
     "models",

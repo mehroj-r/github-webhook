@@ -1,17 +1,17 @@
 import asyncio
+import contextlib
 import signal
 import sys
-from typing import Optional
 
-from core.bot import init_bot, shutdown_bot
-from core import get_logger
 from config import settings
+from core import get_logger
+from core.bot import init_bot, shutdown_bot
 from core.server import start_fastapi_server
 
 logger = get_logger(__name__)
 
 # Global variable to hold the server task
-server_task: Optional[asyncio.Task] = None
+server_task: asyncio.Task | None = None
 
 
 async def main():
@@ -52,15 +52,14 @@ async def shutdown():
     # Cancel server task if running
     if server_task and not server_task.done():
         server_task.cancel()
-        try:
+
+        with contextlib.suppress(asyncio.CancelledError):
             await server_task
-        except asyncio.CancelledError:
-            pass
 
     logger.info("Shutdown complete")
 
 
-def signal_handler(sig, frame):
+def signal_handler(sig, _):
     """Handle shutdown signals gracefully"""
     logger.info(f"Received signal {sig}. Shutting down gracefully...")
     loop = asyncio.get_event_loop()

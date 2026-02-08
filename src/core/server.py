@@ -1,8 +1,7 @@
-from fastapi import FastAPI
-
-from core import get_logger
-from config import settings
 from api import setup_api_routers
+from config import settings
+from core import get_logger
+from fastapi import FastAPI
 
 logger = get_logger(__name__)
 

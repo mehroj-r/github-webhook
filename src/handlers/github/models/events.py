@@ -1,9 +1,7 @@
-from pydantic import BaseModel
+from typing import Literal
 
-from typing import List, Optional, Literal
-from pydantic import HttpUrl
-
-from handlers.github.models.shared import User, Repository, Commit, Pusher, Hook
+from handlers.github.models.shared import Commit, Hook, Pusher, Repository, User
+from pydantic import BaseModel, HttpUrl
 
 
 class BaseEvent(BaseModel):
@@ -32,10 +30,10 @@ class PushEvent(BaseEvent):
     """
 
     ref: str
-    base_ref: Optional[str] = None
+    base_ref: str | None = None
     compare: HttpUrl
-    commits: List[Commit]
-    head_commit: Optional[Commit] = None
+    commits: list[Commit]
+    head_commit: Commit | None = None
 
     before: str
     after: str
@@ -70,9 +68,7 @@ class PushEvent(BaseEvent):
     @property
     def ref_url(self) -> HttpUrl:
         """Get the URL to the branch or tag in the repository"""
-        if self.is_tag:
-            return HttpUrl(f"{self.repository.html_url}/tree/{self.ref_name}")
-        elif self.is_branch:
+        if self.is_tag or self.is_branch:
             return HttpUrl(f"{self.repository.html_url}/tree/{self.ref_name}")
         return self.repository.html_url
 

@@ -1,8 +1,7 @@
-from typing import Optional, List, Tuple
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
-async def send_message(bot, chat_id: int, text: str, url_buttons: Optional[List[Tuple[str, str]]] = None) -> None:
+async def send_message(bot, chat_id: int, text: str, url_buttons: list[tuple[str, str]] | None = None) -> None:
     """
     Send a message using the bot instance with optional URL buttons
 

@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional, List, Union
 
 from pydantic import BaseModel, HttpUrl, field_validator
 
@@ -9,11 +8,11 @@ class User(BaseModel):
 
     id: int
     login: str
-    name: Optional[str] = None
-    email: Optional[str] = None
+    name: str | None = None
+    email: str | None = None
     avatar_url: HttpUrl
     type: str
-    user_view_type: Optional[str] = None
+    user_view_type: str | None = None
 
     node_id: str
     gravatar_id: str
@@ -37,13 +36,13 @@ class Repository(BaseModel):
 
     id: int
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     full_name: str
     owner: User
 
     private: bool
     fork: bool
-    language: Optional[str] = None
+    language: str | None = None
     size: int
     visibility: str
     archived: bool
@@ -68,14 +67,14 @@ class Repository(BaseModel):
     web_commit_signoff_required: bool
 
     node_id: str
-    homepage: Optional[str] = None
-    license: Optional[str] = None
-    topics: List[str]
+    homepage: str | None = None
+    license: str | None = None
+    topics: list[str]
     default_branch: str
-    stargazers: Optional[int] = None
-    master_branch: Optional[str] = None
+    stargazers: int | None = None
+    master_branch: str | None = None
 
-    mirror_url: Optional[str] = None
+    mirror_url: str | None = None
     html_url: HttpUrl
     git_url: str
     ssh_url: str
@@ -125,7 +124,7 @@ class Repository(BaseModel):
 
     @field_validator("created_at", "updated_at", "pushed_at", mode="before")
     @classmethod
-    def parse_datetime(cls, v: Union[int, str, datetime]) -> datetime:
+    def parse_datetime(cls, v: int | str | datetime) -> datetime:
         """
         Parse datetime from multiple formats:
         - Unix timestamp (int) - from push events
@@ -149,7 +148,7 @@ class CommitAuthor(BaseModel):
 
     name: str
     email: str
-    username: Optional[str] = None
+    username: str | None = None
 
     date: datetime
 
@@ -166,9 +165,9 @@ class Commit(BaseModel):
     distinct: bool
     message: str
 
-    added: List[str]
-    removed: List[str]
-    modified: List[str]
+    added: list[str]
+    removed: list[str]
+    modified: list[str]
 
     timestamp: datetime
 
@@ -181,9 +180,9 @@ class Pusher(BaseModel):
 
 
 class LastResponse(BaseModel):
-    code: Optional[int]
-    status: Optional[str]
-    message: Optional[str]
+    code: int | None
+    status: str | None
+    message: str | None
 
 
 class HookConfig(BaseModel):
@@ -197,7 +196,7 @@ class Hook(BaseModel):
     id: int
     name: str
     active: bool
-    events: List[str]
+    events: list[str]
     config: HookConfig
     updated_at: datetime
     created_at: datetime

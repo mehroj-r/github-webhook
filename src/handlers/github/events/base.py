@@ -1,4 +1,5 @@
-from typing import Protocol, Awaitable
+from collections.abc import Awaitable
+from typing import Protocol
 
 from handlers.github.models.events import BaseEvent
 

@@ -1,7 +1,3 @@
-from typing import Optional
-
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core import get_logger
 from core.bot import bot
 from core.decorators import GitHubEventRegistry
@@ -9,6 +5,7 @@ from core.enums import GHEventType
 from core.utils.bot import send_message
 from database.models import Chat
 from handlers.github.models.events import DeleteEvent
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 
@@ -36,7 +33,7 @@ async def handle(event: DeleteEvent, session: AsyncSession) -> None:
     )
 
 
-async def _get_chat_id(repo_name: str, session: AsyncSession) -> Optional[int]:
+async def _get_chat_id(repo_name: str, session: AsyncSession) -> int | None:
     """Get the chat ID associated with the given repository name"""
 
     chat = await Chat.get_by_repo(session, repo_name)
@@ -69,4 +66,3 @@ async def _build_inline_buttons(event: DeleteEvent):
     return [
         ("📂 View Repository", str(event.repository.html_url)),
     ]
-

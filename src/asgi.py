@@ -3,19 +3,20 @@ ASGI application factory for production deployment with Gunicorn + Uvicorn worke
 
 This module provides the ASGI application instance that Gunicorn can use.
 """
-from fastapi import FastAPI
+
 from contextlib import asynccontextmanager
 
-from core import get_logger
-from config import settings
 from api import setup_api_routers
+from config import settings
+from core import get_logger
 from core.bot import init_bot, shutdown_bot
+from fastapi import FastAPI
 
 logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
     """
     Lifespan event handler for FastAPI application.
     Manages startup and shutdown events.
@@ -23,7 +24,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info(f"Starting {settings.APP_NAME}")
     logger.info(f"Debug mode: {settings.DEBUG}")
-    logger.info(f"Initializing bot for webhook mode")
+    logger.info("Initializing bot for webhook mode")
 
     try:
         await init_bot()
@@ -65,4 +66,3 @@ def create_app() -> FastAPI:
 
 # Create the application instance for ASGI servers (Gunicorn/Uvicorn)
 app = create_app()
-

@@ -1,13 +1,13 @@
-from functools import wraps
-from typing import Callable, TYPE_CHECKING, Optional
 import inspect
-
-from sqlalchemy import text
+from collections.abc import Callable
+from functools import wraps
+from typing import TYPE_CHECKING, Optional
 
 from core import get_logger
 from core.enums import GHEventType
-from database import async_session_maker
 from core.utils.command_validator import BaseCommandValidator
+from database import async_session_maker
+from sqlalchemy import text
 
 if TYPE_CHECKING:
     from handlers.github.events.base import EventHandler
@@ -66,10 +66,8 @@ def parse_command(arguments: list, validator: BaseCommandValidator):
     """Decorator to parse command arguments from message text"""
 
     def decorator(handler):
-
         @wraps(handler)
         async def wrapper(message, *args, **kwargs):
-
             # Initialize parsed arguments
             parsed_arguments = {}
             for argument in arguments:
@@ -127,14 +125,11 @@ class GitHubEventRegistry:
 
     @classmethod
     def register(cls, event: GHEventType) -> Callable:
-
         def decorator(handler) -> Callable:
-
             model = cls._extract_event_model(handler)
 
             @wraps(handler)
             async def wrapper(*args, **kwargs) -> None:
-
                 # Create a new database session for each event handling
                 async with async_session_maker() as session:
                     kwargs["session"] = session

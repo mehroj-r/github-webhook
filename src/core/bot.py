@@ -1,12 +1,11 @@
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-
-from handlers.bot import setup_bot_handlers
 from config import settings
 from core import get_logger
-from core.middlewares import DatabaseMiddleware
 from core.decorators import distributed_lock
+from core.middlewares import DatabaseMiddleware
+from handlers.bot import setup_bot_handlers
 
 logger = get_logger(__name__)
 

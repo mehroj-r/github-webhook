@@ -1,8 +1,7 @@
 import enum
 
 
-class ChatType(str, enum.Enum):
-
+class ChatType(enum.StrEnum):
     PRIVATE = "private"
     GROUP = "group"
     CHANNEL = "channel"
