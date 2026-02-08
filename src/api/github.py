@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, HTTPException, status
 
 from config import settings
 from core import get_logger
+from core.utils.github import send_unhandled_event_to_master
 from handlers.github.models.events import BaseEvent
 from handlers.github.models.headers import WebhookHeaders
 
@@ -28,7 +29,22 @@ async def github_webhook(request: Request):
 
     if not handler:
         logger.warning("No handler registered for event type: %s", event_type.value)
-        return {"status": "ignored", "reason": "no_handler"}
+
+        # Send unhandled event details to master chat for analysis
+        try:
+            payload = await headers.extract_payload(request)
+        except Exception as e:
+            logger.error("Failed to extract payload for unhandled event: %s", e)
+            payload = {"error": "Failed to extract payload"}
+
+        # Convert headers to dict for logging
+        headers_dict = dict(request.headers)
+        await send_unhandled_event_to_master(
+            event_type=event_type.value,
+            headers=headers_dict,
+            body=payload,
+        )
+        return {"status": "ignored", "reason": "no_handler", "sent_to_master": True}
 
     # Parse request body
     try:

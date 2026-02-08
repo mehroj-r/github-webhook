@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     WEBHOOK_URL: str = ""
     WEBHOOK_SECRET: str = ""
     WEBHOOK_PATH: str = "/webhook"  # /telegram/webhook
+    MASTER_CHAT_ID: int | None = None  # For miscellaneous stuff
 
     # GitHub Settings
     GH_WEBHOOK_SECRET: str = ""

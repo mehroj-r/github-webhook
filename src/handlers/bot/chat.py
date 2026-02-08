@@ -18,14 +18,12 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
     msg = await message.answer("🔗 Connecting chat to repository...")
 
     # Check if this repository ever pinged via webhook
-    repo = await GithubRepository.get(
-        session=session,
-        url=repo_url,
-    )
+    repo = await GithubRepository.get(session=session, url=repo_url)
 
     if not repo:
         await msg.edit_text(
-            "❌ This repository is not registered. Please ensure that the repository has been added via webhook before connecting."
+            "❌ This repository is not registered. "
+            "Please ensure that the repository has been added via webhook before connecting."
         )
         return
 
