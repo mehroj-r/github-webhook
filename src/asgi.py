@@ -6,11 +6,12 @@ This module provides the ASGI application instance that Gunicorn can use.
 
 from contextlib import asynccontextmanager
 
+from fastapi import FastAPI
+
 from api import setup_api_routers
 from config import settings
 from core import get_logger
 from core.bot import init_bot, shutdown_bot
-from fastapi import FastAPI
 
 logger = get_logger(__name__)
 

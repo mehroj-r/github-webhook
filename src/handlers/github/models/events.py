@@ -1,7 +1,8 @@
 from typing import Literal
 
-from handlers.github.models.shared import Commit, Hook, Pusher, Repository, User
 from pydantic import BaseModel, HttpUrl
+
+from handlers.github.models.shared import Commit, Hook, Pusher, Repository, User
 
 
 class BaseEvent(BaseModel):

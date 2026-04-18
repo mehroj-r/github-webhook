@@ -1,9 +1,10 @@
 from typing import TYPE_CHECKING, Optional
 
-from database.enums import ChatType
-from database.models.base import Base, TimestampMixin
 from sqlalchemy import BigInteger, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from database.enums import ChatType
+from database.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from database.models.github import GithubRepository
@@ -22,7 +23,8 @@ class Chat(Base, TimestampMixin):
     @classmethod
     async def get_by_repo(cls, session, repo_name: str) -> Optional["Chat"]:
         """Get the chat associated with the given repository name"""
-        from database.models import GithubRepository
         from sqlalchemy import select
+
+        from database.models import GithubRepository
 
         return await session.scalar(select(cls).join(cls.repositories).where(GithubRepository.title == repo_name))

@@ -60,7 +60,7 @@ Set `USE_WEBHOOK=true` in your `.env` file. The application will run with:
 ### Production (Manual Deployment)
 ```bash
 # Run migrations
-python -m manage migrate
+uv run alembic -c src/database/alembic.ini upgrade head
 
 # Start with Gunicorn + Uvicorn workers
 gunicorn asgi:app \
@@ -124,4 +124,33 @@ Each worker runs independently, handling requests concurrently with async capabi
 - Set `DEBUG=true` for verbose logging
 - Code formatting with Black
 
+## Task Runner (just)
+
+This project uses a root `justfile` instead of a custom Python management CLI.
+
+```bash
+# List available tasks
+just
+
+# Run app
+just run
+
+# Database migrations
+just makemigrations message="add_new_field"
+just migrate
+just downgrade revision=-1
+
+# Database utilities
+just createdb
+just dropdb yes=true
+just resetdb yes=true
+just showtables
+
+# Quality checks
+just lint
+just format
+just ty
+just test
+just check
+```
 

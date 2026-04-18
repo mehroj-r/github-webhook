@@ -1,7 +1,8 @@
+from fastapi import APIRouter, HTTPException, Request, status
+
 from config import settings
 from core import get_logger
 from core.utils.github import send_unhandled_event_to_master
-from fastapi import APIRouter, HTTPException, Request, status
 from handlers.github.models.events import BaseEvent
 from handlers.github.models.headers import WebhookHeaders
 
@@ -52,7 +53,7 @@ async def github_webhook(request: Request):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON payload") from e
 
     # Parse payload into appropriate event model
-    event_model: BaseEvent = headers.get_event_model()
+    event_model: type[BaseEvent] | None = headers.get_event_model()
     if not event_model:
         logger.error("No event model defined for event type: %s", event_type.value)
         return {"status": "error", "reason": "no_event_model"}

@@ -1,3 +1,5 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core import get_logger
 from core.bot import bot
 from core.decorators import GitHubEventRegistry
@@ -5,7 +7,6 @@ from core.enums import GHEventType
 from core.utils.bot import send_message
 from database.models import Chat
 from handlers.github.models.events import DeleteEvent
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 

@@ -1,4 +1,3 @@
-from abc import ABC
 from typing import final
 
 from core import get_logger
@@ -6,7 +5,7 @@ from core import get_logger
 logger = get_logger(__name__)
 
 
-class BaseCommandValidator(ABC):
+class BaseCommandValidator:
     """Base class for command validators."""
 
     arguments: list[str] = []  # List of argument names to validate

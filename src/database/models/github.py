@@ -1,10 +1,11 @@
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from database.models.base import Base, TimestampMixin
 from pydantic import HttpUrl
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+
+from database.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from database.models.telegram import Chat
@@ -25,9 +26,9 @@ class GithubRepository(Base, TimestampMixin):
         """Validate and process the GitHub repository URL"""
 
         # Normalize URL by removing trailing slash
-        url = str(url).rstrip("/")
+        url_str = str(url).rstrip("/")
 
         # Auto-generate title from URL if not provided
-        if url and not self.title:
-            self.title = url.strip().removeprefix("https://github.com/")
-        return url
+        if url_str and not self.title:
+            self.title = url_str.strip().removeprefix("https://github.com/")
+        return url_str

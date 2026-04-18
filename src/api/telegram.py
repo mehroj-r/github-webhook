@@ -1,7 +1,8 @@
 from aiogram.types import Update
+from fastapi import APIRouter, Header, Request, Response
+
 from config import settings
 from core import get_logger
-from fastapi import APIRouter, Header, Request, Response
 
 logger = get_logger(__name__)
 

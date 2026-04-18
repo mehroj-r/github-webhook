@@ -3,17 +3,22 @@ from collections.abc import Callable
 from functools import wraps
 from typing import TYPE_CHECKING, Optional
 
+from sqlalchemy import text
+
 from core import get_logger
 from core.enums import GHEventType
 from core.utils.command_validator import BaseCommandValidator
 from database import async_session_maker
-from sqlalchemy import text
 
 if TYPE_CHECKING:
     from handlers.github.events.base import EventHandler
     from handlers.github.models.events import BaseEvent
 
 logger = get_logger(__name__)
+
+
+def _handler_name(handler: Callable) -> str:
+    return getattr(handler, "__name__", handler.__class__.__name__)
 
 
 def distributed_lock(lock_name: str):
@@ -115,11 +120,11 @@ class GitHubEventRegistry:
         params = sig.parameters
 
         if "event" not in params:
-            raise ValueError(f"Handler {handler.__name__} must have an 'event' parameter")
+            raise ValueError(f"Handler {_handler_name(handler)} must have an 'event' parameter")
 
         event_param = params["event"]
         if event_param.annotation == inspect.Parameter.empty:
-            raise ValueError(f"Handler {handler.__name__} must have a type hint for 'event' parameter")
+            raise ValueError(f"Handler {_handler_name(handler)} must have a type hint for 'event' parameter")
 
         return event_param.annotation
 
@@ -156,5 +161,5 @@ class GitHubEventRegistry:
         return cls._registry.get(event, {}).get("handler")
 
     @classmethod
-    def get_event_model(cls, event: GHEventType) -> Optional["BaseEvent"]:
+    def get_event_model(cls, event: GHEventType) -> type["BaseEvent"] | None:
         return cls._registry.get(event, {}).get("model")

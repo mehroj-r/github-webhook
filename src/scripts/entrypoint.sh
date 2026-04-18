@@ -2,7 +2,7 @@
 set -e
 
 echo "Running database migrations..."
-python -m manage migrate
+alembic -c /app/database/alembic.ini upgrade head
 
 echo "Starting application with Gunicorn + Uvicorn workers..."
 exec gunicorn asgi:app --config /app/gunicorn.conf.py

@@ -1,7 +1,8 @@
-from core.enums import ContentType, GHEventType
 from fastapi import HTTPException, Request
-from handlers.github.models.events import BaseEvent
 from pydantic import BaseModel, Field
+
+from core.enums import ContentType, GHEventType
+from handlers.github.models.events import BaseEvent
 
 
 class WebhookHeaders(BaseModel):
@@ -16,7 +17,7 @@ class WebhookHeaders(BaseModel):
     target_id: str = Field(..., alias="X-GitHub-Hook-Installation-Target-ID")
     content_type: ContentType = Field(..., alias="Content-Type")
 
-    def get_event_model(self) -> BaseEvent | None:
+    def get_event_model(self) -> type[BaseEvent] | None:
         """Get the corresponding event model class for the event type."""
         from core.decorators import GitHubEventRegistry
 
@@ -43,7 +44,7 @@ class WebhookHeaders(BaseModel):
             case ContentType.FORM_URLENCODED:
                 form = await request.form()
                 payload_str = form.get("payload")
-                if payload_str:
+                if isinstance(payload_str, str) and payload_str:
                     return json.loads(payload_str)
             case _:
                 raise HTTPException(status_code=400, detail="Invalid payload")

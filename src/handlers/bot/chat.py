@@ -1,10 +1,11 @@
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.decorators import parse_command
 from database.enums import ChatType
 from database.models import Chat, GithubRepository
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from .validators.chat import ConnectRepoCommandValidator
 
@@ -55,6 +56,9 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
 
 @router.message(F.new_chat_members)
 async def handle_bot_added(message: Message):
+    if not message.new_chat_members or not message.bot:
+        return
+
     for member in message.new_chat_members:
         if member.is_bot and member.id == message.bot.id:
             await message.answer("👋 Hello! Thanks for adding me to this chat.")
