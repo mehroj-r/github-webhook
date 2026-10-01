@@ -3,11 +3,9 @@ from html import escape
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import get_logger
-from core.bot import bot
 from core.decorators import GitHubEventRegistry
 from core.enums import GHEventType
-from core.utils.bot import send_message
-from database.models import Chat
+from core.notifications import notify, resolve_target
 from handlers.github.models import events as event_models
 
 logger = get_logger(__name__)
@@ -47,23 +45,13 @@ def _extract_details(event: event_models.BaseEvent) -> list[str]:
     return details
 
 
-async def _get_chat_id(repo_name: str, session: AsyncSession) -> int | None:
-    chat = await Chat.get_by_repo(session, repo_name)
-
-    if not chat:
-        logger.info("No chat configured for repository %s", repo_name)
-        return None
-
-    return chat.chat_id
-
-
 async def _notify(event_type: GHEventType, event: event_models.BaseEvent, session: AsyncSession) -> None:
     if not event.repository:
         logger.info("Skipping %s event without repository context", event_type.value)
         return
 
-    chat_id = await _get_chat_id(repo_name=event.repository.full_name, session=session)
-    if not chat_id:
+    target = await resolve_target(session, repo_name=event.repository.full_name, event_type=event_type.value)
+    if not target:
         return
 
     action_text = event.action or "triggered"
@@ -87,12 +75,7 @@ async def _notify(event_type: GHEventType, event: event_models.BaseEvent, sessio
 
     message += details_block
 
-    await send_message(
-        bot=bot,
-        chat_id=chat_id,
-        text=message,
-        url_buttons=[("📂 View Repository", str(event.repository.html_url))],
-    )
+    await notify(target, text=message, url_buttons=[("📂 View Repository", str(event.repository.html_url))])
 
 
 EVENT_MODEL_MAP: dict[GHEventType, type[event_models.BaseEvent]] = {

@@ -15,6 +15,7 @@ logger = get_logger(__name__)
 
 dp = Dispatcher()
 dp.message.middleware(DatabaseMiddleware())
+dp.callback_query.middleware(DatabaseMiddleware())
 
 bot = Bot(
     token=settings.BOT_TOKEN,

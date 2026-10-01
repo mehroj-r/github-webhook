@@ -3,11 +3,9 @@ from html import escape
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import get_logger
-from core.bot import bot
 from core.decorators import GitHubEventRegistry
 from core.enums import GHEventType
-from core.utils.bot import send_message
-from database.models import Chat
+from core.notifications import notify, resolve_target
 from handlers.github.models.events import PushEvent
 
 logger = get_logger(__name__)
@@ -21,9 +19,8 @@ async def handle(event: PushEvent, session: AsyncSession) -> None:
     if any([event.deleted, event.created]):
         return
 
-    # Get the chat ID associated with the repository
-    chat_id = await _get_chat_id(repo_name=event.repository.full_name, session=session)
-    if not chat_id:
+    target = await resolve_target(session, repo_name=event.repository.full_name, event_type=GHEventType.PUSH.value)
+    if not target:
         return
 
     logger.info("Handling push event for repository: %s", event.repository.full_name)
@@ -32,24 +29,7 @@ async def handle(event: PushEvent, session: AsyncSession) -> None:
     message = await _build_commit_message(event=event)
     buttons = await _build_inline_buttons(event=event)
 
-    await send_message(
-        bot=bot,
-        chat_id=chat_id,
-        text=message,
-        url_buttons=buttons,
-    )
-
-
-async def _get_chat_id(repo_name: str, session: AsyncSession) -> int | None:
-    """Get the chat ID associated with the given repository name"""
-
-    chat = await Chat.get_by_repo(session, repo_name)
-
-    if not chat:
-        logger.error("Failed to get chat ID for repository %s", repo_name)
-        return None
-
-    return chat.chat_id
+    await notify(target, text=message, url_buttons=buttons)
 
 
 async def _build_commit_message(event: PushEvent) -> str:

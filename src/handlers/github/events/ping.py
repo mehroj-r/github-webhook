@@ -3,11 +3,10 @@ from html import escape
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import get_logger
-from core.bot import bot
 from core.decorators import GitHubEventRegistry
 from core.enums import GHEventType
-from core.utils.bot import send_message
-from database.models import Chat, GithubRepository
+from core.notifications import notify, resolve_target
+from database.models import GithubRepository
 from handlers.github.models.events import PingEvent
 
 logger = get_logger(__name__)
@@ -37,28 +36,15 @@ async def handle(event: PingEvent, session: AsyncSession) -> None:
         logger.info("Registered new repository from ping event: %s", repo.title)
         return
 
-    # Check if repository has an associated chat
-    if repo.chat_id is None:
-        logger.warning("Repository %s has no associated chat ID", repo.title)
-        return
-
-    # Get the chat associated with the repository
-    chat = await Chat.get(session, id=repo.chat_id)
-
-    if chat is None:
-        logger.error("Chat with ID %s not found for repository %s", repo.chat_id, repo.title)
+    target = await resolve_target(session, repo_name=repo.title, event_type=GHEventType.PING.value)
+    if not target:
         return
 
     # Build the commit message and inline buttons
     message = await _build_commit_message(event)
     buttons = await _build_inline_buttons(event)
 
-    await send_message(
-        bot=bot,
-        chat_id=chat.chat_id,
-        text=message,
-        url_buttons=buttons,
-    )
+    await notify(target, text=message, url_buttons=buttons)
 
 
 async def _build_commit_message(event: PingEvent) -> str:

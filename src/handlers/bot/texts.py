@@ -13,6 +13,7 @@ HELP_TEXT = (
     "/connect_repo &lt;url&gt; — connect a registered repository to this chat\n"
     "/disconnect_repo &lt;url&gt; — stop notifications for a repository in this chat\n"
     "/repos — list repositories connected to this chat\n"
+    "/events [repo] — choose which GitHub events are posted for a repository\n"
     "/deliveries — show the latest webhook deliveries for connected repositories\n"
     "/help — show this message\n\n"
     "<i>In groups, connecting and disconnecting repositories is limited to chat administrators.</i>"
