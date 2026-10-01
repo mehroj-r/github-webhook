@@ -12,7 +12,13 @@ def truncate_message(text: str, limit: int = MAX_MESSAGE_LENGTH) -> str:
     return text[: limit - len(TRUNCATION_SUFFIX)] + TRUNCATION_SUFFIX
 
 
-async def send_message(bot, chat_id: int, text: str, url_buttons: list[tuple[str, str]] | None = None) -> None:
+async def send_message(
+    bot,
+    chat_id: int,
+    text: str,
+    url_buttons: list[tuple[str, str]] | None = None,
+    message_thread_id: int | None = None,
+) -> None:
     """
     Send a message using the bot instance with optional URL buttons
 
@@ -21,6 +27,7 @@ async def send_message(bot, chat_id: int, text: str, url_buttons: list[tuple[str
         chat_id: Chat ID to send the message to
         text: Message text (supports HTML formatting)
         url_buttons: Optional list of tuples (button_text, url) for inline keyboard buttons
+        message_thread_id: Forum topic to post into (supergroups with topics enabled)
     """
     reply_markup = None
 
@@ -29,4 +36,9 @@ async def send_message(bot, chat_id: int, text: str, url_buttons: list[tuple[str
         keyboard = [[InlineKeyboardButton(text=button_text, url=url)] for button_text, url in url_buttons]
         reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-    await bot.send_message(chat_id=chat_id, text=truncate_message(text), reply_markup=reply_markup)
+    await bot.send_message(
+        chat_id=chat_id,
+        text=truncate_message(text),
+        reply_markup=reply_markup,
+        message_thread_id=message_thread_id,
+    )

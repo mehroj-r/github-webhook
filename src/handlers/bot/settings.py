@@ -238,3 +238,30 @@ async def handle_pause(message: Message, session: AsyncSession) -> None:
 @router.message(Command("resume"), ChatAdminFilter())
 async def handle_resume(message: Message, session: AsyncSession) -> None:
     await _set_active(message, session, active=True)
+
+
+@router.message(Command("topic"), ChatAdminFilter())
+async def handle_topic(message: Message, session: AsyncSession) -> None:
+    """Post a repository's notifications into the forum topic this command is sent from."""
+    repo, args, error = await _pick_repo(session, message)
+    if error or repo is None:
+        await message.answer(error or "Repository not found.")
+        return
+
+    if args and args[0].lower() in {"clear", "off", "none"}:
+        await repo.update(session, message_thread_id=None)
+        await message.answer(f"🧵 <b>{escape(repo.title)}</b> will post to the main chat again.")
+        return
+
+    thread_id = message.message_thread_id if message.is_topic_message else None
+    if thread_id is None:
+        current = f"topic <code>{repo.message_thread_id}</code>" if repo.message_thread_id else "the main chat"
+        await message.answer(
+            f"🧵 <b>{escape(repo.title)}</b> currently posts to {current}.\n"
+            "Send <code>/topic [repo]</code> inside a forum topic to route notifications there, "
+            "or <code>/topic [repo] clear</code> to reset."
+        )
+        return
+
+    await repo.update(session, message_thread_id=thread_id)
+    await message.answer(f"🧵 <b>{escape(repo.title)}</b> notifications will be posted in this topic.")

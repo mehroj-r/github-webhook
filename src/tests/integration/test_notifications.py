@@ -225,3 +225,56 @@ class TestPauseResume:
         async with sqlite_session_maker() as session:
             await handle_repos(message, session=session)
         assert "(paused)" in message.answer.await_args.args[0]
+
+
+class TestTopicRouting:
+    @staticmethod
+    def topic_message(text: str, thread_id: int | None) -> MagicMock:
+        message = TestBranchAndMuteCommands.message(text)
+        message.is_topic_message = thread_id is not None
+        message.message_thread_id = thread_id
+        return message
+
+    @pytest.mark.integration
+    async def test_topic_set_and_used_for_delivery(self, sqlite_session_maker):
+        from core.notifications import notify
+        from handlers.bot.settings import handle_topic
+
+        await seed(sqlite_session_maker)
+        async with sqlite_session_maker() as session:
+            await handle_topic(self.topic_message("/topic", thread_id=42), session=session)
+            await session.commit()
+            target = await resolve_target(session, REPO, "push")
+
+        assert target is not None
+        assert target.thread_id == 42
+
+        fake_bot = MagicMock()
+        fake_bot.send_message = AsyncMock()
+        with patch("core.bot.bot", fake_bot):
+            await notify(target, text="hello")
+        assert fake_bot.send_message.await_args.kwargs["message_thread_id"] == 42
+
+    @pytest.mark.integration
+    async def test_topic_outside_forum_shows_status(self, sqlite_session_maker):
+        from handlers.bot.settings import handle_topic
+
+        await seed(sqlite_session_maker)
+        message = self.topic_message("/topic", thread_id=None)
+        async with sqlite_session_maker() as session:
+            await handle_topic(message, session=session)
+            repo = await GithubRepository.get(session, title=REPO)
+        assert repo.message_thread_id is None
+        assert "main chat" in message.answer.await_args.args[0]
+
+    @pytest.mark.integration
+    async def test_topic_clear(self, sqlite_session_maker):
+        from handlers.bot.settings import handle_topic
+
+        await seed(sqlite_session_maker)
+        async with sqlite_session_maker() as session:
+            await handle_topic(self.topic_message("/topic", thread_id=7), session=session)
+            await handle_topic(self.topic_message("/topic clear", thread_id=7), session=session)
+            await session.commit()
+            repo = await GithubRepository.get(session, title=REPO)
+        assert repo.message_thread_id is None

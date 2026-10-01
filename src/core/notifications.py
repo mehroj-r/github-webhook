@@ -22,6 +22,10 @@ class NotificationTarget:
     def chat_id(self) -> int:
         return self.chat.chat_id
 
+    @property
+    def thread_id(self) -> int | None:
+        return self.repo.message_thread_id
+
 
 async def resolve_target(
     session: AsyncSession, repo_name: str, event_type: str, branch: str | None = None
@@ -67,4 +71,6 @@ async def notify(target: NotificationTarget, text: str, url_buttons: list[tuple[
     """Send a notification to the resolved target."""
     from core.bot import bot
 
-    await send_message(bot=bot, chat_id=target.chat_id, text=text, url_buttons=url_buttons)
+    await send_message(
+        bot=bot, chat_id=target.chat_id, text=text, url_buttons=url_buttons, message_thread_id=target.thread_id
+    )
