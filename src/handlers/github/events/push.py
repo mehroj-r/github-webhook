@@ -1,3 +1,5 @@
+from html import escape
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import get_logger
@@ -57,16 +59,16 @@ async def _build_commit_message(event: PushEvent) -> str:
     commit_count = len(event.commits)
     branch_or_tag = "🏷 Tag" if event.is_tag else "🌿 Branch"
 
-    # Build commit details (show up to 3 commits)
+    # Build commit details (show up to 3 most recent commits)
     commit_details = []
-    for commit in event.commits[commit_count - 3 :]:
+    for commit in event.commits[-3:]:
         # Get first line of commit message
         commit_msg = commit.message.split("\n")[0]
         if len(commit_msg) > 60:
             commit_msg = commit_msg[:57] + "..."
 
         # Show files changed summary
-        commit_details.append(f"  • <a href='{commit.url}'>{commit_msg}</a>")
+        commit_details.append(f"  • <a href='{commit.url}'>{escape(commit_msg)}</a>")
 
     total_added, total_removed, total_modified = 0, 0, 0
     for commit in event.commits:
@@ -85,9 +87,9 @@ async def _build_commit_message(event: PushEvent) -> str:
     force_text = " (force push)" if event.forced else ""
 
     message = (
-        f"🚀 <b>Push to <a href='{event.repository.html_url}'>{event.repository.full_name}</a></b>\n"
-        f"{branch_or_tag}: <a href='{event.ref_url}'>{event.ref_name}</a>\n"
-        f"👤 Pusher: <a href='{event.sender.html_url}'>{event.sender.login}</a>{force_text}\n"
+        f"🚀 <b>Push to <a href='{event.repository.html_url}'>{escape(event.repository.full_name)}</a></b>\n"
+        f"{branch_or_tag}: <a href='{event.ref_url}'>{escape(event.ref_name)}</a>\n"
+        f"👤 Pusher: <a href='{event.sender.html_url}'>{escape(event.sender.login)}</a>{force_text}\n"
         f"📝 {commit_count} commit{'s' if commit_count != 1 else ''} [+{total_added} / -{total_removed} / ~{total_modified}]\n\n"
         f"{commits_text}"
         f"{more_commits}"

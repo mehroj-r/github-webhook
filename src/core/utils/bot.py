@@ -1,5 +1,16 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+# Telegram hard limit for a single text message
+MAX_MESSAGE_LENGTH = 4096
+TRUNCATION_SUFFIX = "\n\n<i>... (truncated)</i>"
+
+
+def truncate_message(text: str, limit: int = MAX_MESSAGE_LENGTH) -> str:
+    """Trim a message so it fits within Telegram's text length limit."""
+    if len(text) <= limit:
+        return text
+    return text[: limit - len(TRUNCATION_SUFFIX)] + TRUNCATION_SUFFIX
+
 
 async def send_message(bot, chat_id: int, text: str, url_buttons: list[tuple[str, str]] | None = None) -> None:
     """
@@ -15,9 +26,7 @@ async def send_message(bot, chat_id: int, text: str, url_buttons: list[tuple[str
 
     if url_buttons:
         # Create inline keyboard with URL buttons
-        keyboard = []
-        for button_text, url in url_buttons:
-            keyboard.append([InlineKeyboardButton(text=button_text, url=url)])
+        keyboard = [[InlineKeyboardButton(text=button_text, url=url)] for button_text, url in url_buttons]
         reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-    await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
+    await bot.send_message(chat_id=chat_id, text=truncate_message(text), reply_markup=reply_markup)

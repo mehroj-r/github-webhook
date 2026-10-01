@@ -12,6 +12,7 @@ from api import setup_api_routers
 from config import settings
 from core import get_logger
 from core.bot import init_bot, shutdown_bot
+from database import close_db
 
 logger = get_logger(__name__)
 
@@ -43,6 +44,8 @@ async def lifespan(_: FastAPI):
         logger.info("Bot shutdown completed")
     except Exception as e:
         logger.error(f"Error during shutdown: {e}", exc_info=True)
+
+    await close_db()
 
 
 def create_app() -> FastAPI:

@@ -17,3 +17,4 @@ logs/
 *.sqlite
 *.sqlite3
 /.coverage
+*__pycache__*

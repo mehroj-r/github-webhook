@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
     DATABASE_ECHO: bool = False
 
+    @property
+    def telegram_webhook_url(self) -> str:
+        """Full public URL Telegram should deliver updates to."""
+        return f"{self.WEBHOOK_URL.rstrip('/')}/telegram{self.WEBHOOK_PATH}"
+
 
 @lru_cache
 def _get_settings() -> Settings:

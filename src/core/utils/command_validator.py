@@ -22,7 +22,9 @@ class BaseCommandValidator:
         """Validate arguments by dynamically calling validate_{arg_name} methods."""
 
         # First, validate the length of arguments
-        await self.validate__length(args_data=args_data)
+        is_valid, error_msg = await self.validate__length(args_data=args_data)
+        if not is_valid:
+            return False, error_msg
 
         # Then, validate each argument
         for arg, value in args_data.items():

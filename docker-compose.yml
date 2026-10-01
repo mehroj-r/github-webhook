@@ -19,6 +19,7 @@ services:
 
   app:
     container_name: gh-webhook-app-prod
+    image: ${CONTAINER_NAME:-gh-webhook-app}:latest
     build: .
     entrypoint: /app/scripts/entrypoint.sh
     ports:

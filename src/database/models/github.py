@@ -19,7 +19,7 @@ class GithubRepository(Base, TimestampMixin):
     chat_id: Mapped[UUID | None] = mapped_column(ForeignKey("tg_chats.id"), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
 
-    chat: Mapped["Chat"] = relationship(back_populates="repositories")
+    chat: Mapped["Chat | None"] = relationship(back_populates="repositories")
 
     @validates("url")
     def process_url(self, _, url: HttpUrl) -> str | None:

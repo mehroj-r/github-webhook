@@ -91,9 +91,20 @@ LOGGING_CONFIG = {
     },
     "root": {
         "handlers": ["console", "file", "error_file"],
-        "level": "DEBUG",
+        "level": "DEBUG" if settings.DEBUG else "INFO",
     },
 }
+
+_configured = False
+
+
+def configure_logging() -> None:
+    """Apply the logging configuration once per process."""
+    global _configured
+    if _configured:
+        return
+    logging.config.dictConfig(LOGGING_CONFIG)
+    _configured = True
 
 
 @lru_cache
@@ -106,11 +117,8 @@ def get_logger(name: str) -> logging.Logger:
     :return: The singleton logger.
     """
 
-    # Configure the logging system
-    logging.config.dictConfig(LOGGING_CONFIG)
-    logger = logging.getLogger(name)
-
-    return logger
+    configure_logging()
+    return logging.getLogger(name)
 
 
 def get_logger_config() -> dict:

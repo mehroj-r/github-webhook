@@ -1,6 +1,7 @@
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.decorators import parse_command
@@ -17,8 +18,11 @@ router = Router()
 async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSession) -> None:
     msg = await message.answer("🔗 Connecting chat to repository...")
 
-    # Check if this repository ever pinged via webhook
-    repo = await GithubRepository.get(session=session, url=repo_url)
+    # Check if this repository ever pinged via webhook (URLs are stored without trailing slash)
+    normalized_url = repo_url.strip().rstrip("/")
+    repo = await session.scalar(
+        select(GithubRepository).where(func.lower(GithubRepository.url) == normalized_url.lower())
+    )
 
     if not repo:
         await msg.edit_text(
@@ -32,7 +36,7 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
         session=session,
         chat_id=message.chat.id,
         defaults={
-            "chat_type": ChatType(message.chat.type),
+            "chat_type": _resolve_chat_type(message.chat.type),
             "title": message.chat.title or message.chat.full_name,
         },
     )
@@ -49,9 +53,15 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
         )
         return
 
-    if repo.chat_id == chat.id:
-        await msg.edit_text("ℹ️ This chat is already connected to the specified repository.")
-        return
+    await msg.edit_text("ℹ️ This chat is already connected to the specified repository.")
+
+
+def _resolve_chat_type(telegram_chat_type: str) -> ChatType:
+    """Map a Telegram chat type onto the stored enum, falling back to GROUP for unknown kinds."""
+    try:
+        return ChatType(telegram_chat_type)
+    except ValueError:
+        return ChatType.GROUP
 
 
 @router.message(F.new_chat_members)

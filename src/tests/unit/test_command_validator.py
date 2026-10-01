@@ -45,6 +45,36 @@ class TestCommandValidator:
         assert result is False
         assert msg == "Invalid number of arguments"
 
+    @pytest.mark.async_
+    async def test_validate_rejects_wrong_argument_count(self):
+        """validate() must honour the length check (it used to discard the result)."""
+
+        class TestValidator(BaseCommandValidator):
+            arguments = ["arg1", "arg2"]
+            error_msg = "Usage: /cmd arg1 arg2"
+
+            async def validate_arg1(self, value):
+                return True, ""
+
+        validator = TestValidator()
+        result, msg = await validator.validate({"arg1": "value1"})
+        assert result is False
+        assert msg == "Usage: /cmd arg1 arg2"
+
+    @pytest.mark.async_
+    async def test_validate_runs_per_argument_validators(self):
+        """validate() delegates to validate_<arg> methods."""
+
+        class TestValidator(BaseCommandValidator):
+            arguments = ["arg1"]
+
+            async def validate_arg1(self, value):
+                return (value == "ok", "arg1 must be ok")
+
+        validator = TestValidator()
+        assert await validator.validate({"arg1": "ok"}) == (True, "")
+        assert await validator.validate({"arg1": "no"}) == (False, "arg1 must be ok")
+
     @pytest.mark.unit
     def test_base_validator_has_validate_method(self):
         """Test that BaseCommandValidator has validate method."""

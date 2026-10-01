@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 
 from config import settings
 from core import get_logger
-from core.utils.github import send_unhandled_event_to_master
+from core.utils.github import send_unhandled_event_to_master, verify_signature
 from handlers.github.models.events import BaseEvent
 from handlers.github.models.headers import WebhookHeaders
 
@@ -22,6 +22,13 @@ async def github_webhook(request: Request):
         logger.error("Invalid webhook headers: %s", e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook headers") from e
 
+    # Verify the payload signature before trusting anything in the body.
+    # Starlette caches the body, so later request.json()/request.form() calls reuse it.
+    body = await request.body()
+    if not verify_signature(body=body, signature_header=headers.signature):
+        logger.warning("Rejected GitHub delivery %s: invalid or missing signature", headers.delivery)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
+
     # Get and execute handler
     event_type = headers.event_type
     handler = headers.get_event_handler()
@@ -36,18 +43,18 @@ async def github_webhook(request: Request):
             logger.error("Failed to extract payload for unhandled event: %s", e)
             payload = {"error": "Failed to extract payload"}
 
-        # Convert headers to dict for logging
-        headers_dict = dict(request.headers)
-        await send_unhandled_event_to_master(
+        sent = await send_unhandled_event_to_master(
             event_type=event_type.value,
-            headers=headers_dict,
+            headers=dict(request.headers),
             body=payload,
         )
-        return {"status": "ignored", "reason": "no_handler", "sent_to_master": True}
+        return {"status": "ignored", "reason": "no_handler", "sent_to_master": sent}
 
     # Parse request body
     try:
         payload = await headers.extract_payload(request)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Failed to parse request body: %s", e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON payload") from e
@@ -61,7 +68,7 @@ async def github_webhook(request: Request):
     try:
         event = event_model.model_validate(payload)
     except Exception as e:
-        logger.error("Failed to parse %s event payload: %s", event_type.value, e)
+        logger.error("Failed to parse %s event payload (delivery %s): %s", event_type.value, headers.delivery, e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid {event_type.value} event payload"
         ) from e
@@ -69,7 +76,7 @@ async def github_webhook(request: Request):
     # Execute handler
     try:
         await handler(event=event)
-        logger.info("Successfully handled %s event", event_type.value)
+        logger.info("Successfully handled %s event (delivery %s)", event_type.value, headers.delivery)
         return {"status": "processed", "event_type": event_type.value}
     except Exception as e:
         logger.error("Error handling %s event: %s", event_type.value, e, exc_info=True)

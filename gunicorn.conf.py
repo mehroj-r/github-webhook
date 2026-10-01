@@ -1,6 +1,7 @@
 import multiprocessing
 import os
 
+from config import settings
 from core import get_logger, get_logger_config
 
 logger = get_logger("gunicorn")
@@ -60,8 +61,7 @@ limit_request_field_size = 8190
 def on_starting(_):
     """Called just before the master process is initialized."""
     # Ensure logs directory exists
-    log_dir = os.getenv("LOG_DIR")
-    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(settings.LOG_DIR, exist_ok=True)
     logger.info(f"Starting Gunicorn with {workers} Uvicorn workers")
     logger.info(f"Access log: {accesslog}")
     logger.info(f"Error log: {errorlog}")

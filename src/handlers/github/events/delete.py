@@ -1,3 +1,5 @@
+from html import escape
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import get_logger
@@ -53,9 +55,9 @@ async def _build_delete_message(event: DeleteEvent) -> str:
     ref_type_text = "Tag" if event.is_tag else "Branch"
 
     message = (
-        f"🗑 <b>{ref_type_text} deleted from <a href='{event.repository.html_url}'>{event.repository.full_name}</a></b>\n"
-        f"{ref_type_emoji} {ref_type_text}: <code>{event.ref_name}</code>\n"
-        f"👤 Deleted by: <a href='{event.sender.html_url}'>{event.sender.login}</a>"
+        f"🗑 <b>{ref_type_text} deleted from <a href='{event.repository.html_url}'>{escape(event.repository.full_name)}</a></b>\n"
+        f"{ref_type_emoji} {ref_type_text}: <code>{escape(event.ref_name)}</code>\n"
+        f"👤 Deleted by: <a href='{event.sender.html_url}'>{escape(event.sender.login)}</a>"
     )
 
     return message

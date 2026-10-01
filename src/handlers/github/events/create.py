@@ -1,3 +1,5 @@
+from html import escape
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import get_logger
@@ -56,14 +58,14 @@ async def _build_create_message(event: CreateEvent) -> str:
     ref_url = f"{event.repository.html_url}/tree/{event.ref_name}"
 
     message = (
-        f"✨ <b>New {ref_type_text} created in <a href='{event.repository.html_url}'>{event.repository.full_name}</a></b>\n"
-        f"{ref_type_emoji} {ref_type_text}: <a href='{ref_url}'>{event.ref_name}</a>\n"
-        f"👤 Created by: <a href='{event.sender.html_url}'>{event.sender.login}</a>"
+        f"✨ <b>New {ref_type_text} created in <a href='{event.repository.html_url}'>{escape(event.repository.full_name)}</a></b>\n"
+        f"{ref_type_emoji} {ref_type_text}: <a href='{ref_url}'>{escape(event.ref_name)}</a>\n"
+        f"👤 Created by: <a href='{event.sender.html_url}'>{escape(event.sender.login)}</a>"
     )
 
     # Add description if available
     if event.description:
-        message += f"\n📄 Description: {event.description}"
+        message += f"\n📄 Description: {escape(event.description)}"
 
     return message
 

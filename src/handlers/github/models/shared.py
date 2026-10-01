@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import BaseModel, HttpUrl, field_validator
 
@@ -44,9 +45,9 @@ class Repository(BaseModel):
     fork: bool
     language: str | None = None
     size: int
-    visibility: str
-    archived: bool
-    disabled: bool
+    visibility: str | None = None
+    archived: bool = False
+    disabled: bool = False
 
     forks: int
     open_issues: int
@@ -61,15 +62,15 @@ class Repository(BaseModel):
     has_downloads: bool
     has_wiki: bool
     has_pages: bool
-    has_discussions: bool
-    allow_forking: bool
-    is_template: bool
-    web_commit_signoff_required: bool
+    has_discussions: bool = False
+    allow_forking: bool = True
+    is_template: bool = False
+    web_commit_signoff_required: bool = False
 
     node_id: str
     homepage: str | None = None
-    license: str | None = None
-    topics: list[str]
+    license: dict[str, Any] | str | None = None
+    topics: list[str] = []
     default_branch: str
     stargazers: int | None = None
     master_branch: str | None = None
@@ -120,22 +121,22 @@ class Repository(BaseModel):
 
     created_at: datetime
     updated_at: datetime
-    pushed_at: datetime
+    pushed_at: datetime | None = None
 
     @field_validator("created_at", "updated_at", "pushed_at", mode="before")
     @classmethod
-    def parse_datetime(cls, v: int | str | datetime) -> datetime:
+    def parse_datetime(cls, v: int | str | datetime | None) -> datetime | None:
         """
         Parse datetime from multiple formats:
         - Unix timestamp (int) - from push events
         - ISO string - from create events
         - datetime object - passthrough
         """
-        if isinstance(v, datetime):
+        if v is None or isinstance(v, datetime):
             return v
         elif isinstance(v, int):
             # Unix timestamp (push event)
-            return datetime.fromtimestamp(v)
+            return datetime.fromtimestamp(v, tz=UTC)
         elif isinstance(v, str):
             # ISO format string (create event)
             return datetime.fromisoformat(v.replace("Z", "+00:00"))
@@ -147,10 +148,10 @@ class CommitAuthor(BaseModel):
     """Model for commit author/committer information"""
 
     name: str
-    email: str
+    email: str | None = None
     username: str | None = None
 
-    date: datetime
+    date: datetime | None = None
 
 
 class Commit(BaseModel):
@@ -176,19 +177,19 @@ class Pusher(BaseModel):
     """Model for the user who pushed the commits"""
 
     name: str
-    email: str
+    email: str | None = None
 
 
 class LastResponse(BaseModel):
-    code: int | None
-    status: str | None
-    message: str | None
+    code: int | None = None
+    status: str | None = None
+    message: str | None = None
 
 
 class HookConfig(BaseModel):
-    content_type: str
-    insecure_ssl: str
-    url: str
+    content_type: str | None = None
+    insecure_ssl: str | int | None = None
+    url: str | None = None
 
 
 class Hook(BaseModel):
@@ -201,7 +202,7 @@ class Hook(BaseModel):
     updated_at: datetime
     created_at: datetime
     url: str
-    test_url: str
-    ping_url: str
-    deliveries_url: str
-    last_response: LastResponse
+    test_url: str | None = None
+    ping_url: str | None = None
+    deliveries_url: str | None = None
+    last_response: LastResponse | None = None
