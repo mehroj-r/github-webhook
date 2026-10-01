@@ -189,3 +189,39 @@ class TestBranchAndMuteCommands:
             assert await resolve_target(session, REPO, "push") is not None
 
         assert "Several repositories" in ambiguous.answer.await_args.args[0]
+
+
+class TestPauseResume:
+    @pytest.mark.integration
+    async def test_pause_and_resume(self, sqlite_session_maker):
+        from handlers.bot.settings import handle_pause, handle_resume
+
+        await seed(sqlite_session_maker)
+        pause = TestBranchAndMuteCommands.message("/pause")
+        resume = TestBranchAndMuteCommands.message("/resume")
+        again = TestBranchAndMuteCommands.message("/resume")
+
+        async with sqlite_session_maker() as session:
+            await handle_pause(pause, session=session)
+            await session.commit()
+            assert await resolve_target(session, REPO, "push") is None
+
+            await handle_resume(resume, session=session)
+            await session.commit()
+            assert await resolve_target(session, REPO, "push") is not None
+
+            await handle_resume(again, session=session)
+
+        assert "paused" in pause.answer.await_args.args[0]
+        assert "resumed" in resume.answer.await_args.args[0]
+        assert "is active" in again.answer.await_args.args[0]
+
+    @pytest.mark.integration
+    async def test_repos_lists_paused_state(self, sqlite_session_maker):
+        from handlers.bot.chat import handle_repos
+
+        await seed(sqlite_session_maker, active=False)
+        message = TestBranchAndMuteCommands.message("/repos")
+        async with sqlite_session_maker() as session:
+            await handle_repos(message, session=session)
+        assert "(paused)" in message.answer.await_args.args[0]

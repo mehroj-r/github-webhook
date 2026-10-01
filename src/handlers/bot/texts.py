@@ -17,6 +17,7 @@ HELP_TEXT = (
     "/filter_branches [repo] &lt;patterns&gt; — only report matching branches (e.g. <code>main,release/*</code>)\n"
     "/mute [repo] &lt;duration&gt; — pause notifications for a while (e.g. <code>2h</code>)\n"
     "/unmute [repo] — resume notifications\n"
+    "/pause [repo] and /resume [repo] — switch a repository off and on indefinitely\n"
     "/deliveries — show the latest webhook deliveries for connected repositories\n"
     "/help — show this message\n\n"
     "<i>In groups, connecting and disconnecting repositories is limited to chat administrators.</i>"

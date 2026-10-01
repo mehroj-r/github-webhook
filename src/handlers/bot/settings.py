@@ -209,3 +209,32 @@ async def handle_unmute(message: Message, session: AsyncSession) -> None:
 
     await repo.update(session, muted_until=None)
     await message.answer(f"🔔 <b>{escape(repo.title)}</b> unmuted.")
+
+
+async def _set_active(message: Message, session: AsyncSession, active: bool) -> None:
+    repo, _, error = await _pick_repo(session, message)
+    if error or repo is None:
+        await message.answer(error or "Repository not found.")
+        return
+
+    if repo.is_active == active:
+        state = "active" if active else "already paused"
+        await message.answer(f"ℹ️ <b>{escape(repo.title)}</b> is {state}.")
+        return
+
+    await repo.update(session, is_active=active)
+    if active:
+        await message.answer(f"▶️ <b>{escape(repo.title)}</b> resumed. Notifications are back on.")
+    else:
+        await message.answer(f"⏸ <b>{escape(repo.title)}</b> paused. Use /resume to turn notifications back on.")
+
+
+@router.message(Command("pause"), ChatAdminFilter())
+async def handle_pause(message: Message, session: AsyncSession) -> None:
+    """Stop notifications for a repository until /resume (unlike /mute, without a time limit)."""
+    await _set_active(message, session, active=False)
+
+
+@router.message(Command("resume"), ChatAdminFilter())
+async def handle_resume(message: Message, session: AsyncSession) -> None:
+    await _set_active(message, session, active=True)
