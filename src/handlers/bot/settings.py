@@ -11,6 +11,7 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.utils.duration import format_duration, parse_duration
+from database.enums import MessageTemplate
 from database.models import Chat, GithubRepository, WebhookDelivery
 from handlers.github.catalog import EVENT_KEYS, EVENT_LABELS
 
@@ -309,3 +310,34 @@ async def handle_status(message: Message, session: AsyncSession) -> None:
         blocks.append(_describe_repo(repo, last))
 
     await message.answer("<b>📊 Chat status</b>\n\n" + "\n\n".join(blocks))
+
+
+@router.message(Command("template"), ChatAdminFilter())
+async def handle_template(message: Message, session: AsyncSession) -> None:
+    """Switch this chat between verbose and compact notifications: /template compact|verbose"""
+    chat = await Chat.get(session, chat_id=message.chat.id)
+    if chat is None:
+        await message.answer("ℹ️ Connect a repository first with /connect_repo.")
+        return
+
+    args = (message.text or "").split()[1:]
+    choices = ", ".join(t.value for t in MessageTemplate)
+    if not args:
+        await message.answer(
+            f"🎨 Current template: <b>{escape(chat.template)}</b>. Usage: <code>/template {choices}</code>"
+        )
+        return
+
+    try:
+        template = MessageTemplate(args[0].lower())
+    except ValueError:
+        await message.answer(f"❌ Unknown template. Choose one of: <code>{choices}</code>.")
+        return
+
+    await chat.update(session, template=template.value)
+    hint = (
+        "headline lines only, one button"
+        if template is MessageTemplate.COMPACT
+        else "bodies, commit lists and all buttons"
+    )
+    await message.answer(f"🎨 Template set to <b>{template.value}</b> ({hint}).")

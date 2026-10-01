@@ -103,3 +103,44 @@ class TestWorkflowRunLifecycle:
             {"action": "requested", "workflow_run": {**RUN, "run_attempt": 2}, "workflow": {}, "repository": REPOSITORY, "sender": USER}
         )
         assert workflow_run.message_key(event) == "workflow_run:555:2"
+
+
+class TestCompactTemplate:
+    @pytest.mark.integration
+    async def test_compact_chat_gets_trimmed_text_and_single_button(self, sqlite_session_maker):
+        from core.notifications import notify
+        from handlers.bot.settings import handle_template
+
+        await seed(sqlite_session_maker)
+        message = MagicMock()
+        message.text = "/template compact"
+        message.chat.id = -100
+        message.answer = AsyncMock()
+
+        bot = fake_bot()
+        with patch("core.bot.bot", bot):
+            async with sqlite_session_maker() as session:
+                await handle_template(message, session=session)
+                await session.commit()
+                target = await resolve_target(session, REPO, "push")
+                await notify(target, text="<b>Head</b>\n<blockquote>body</blockquote>", url_buttons=[("a", "https://a"), ("b", "https://b")])
+
+        assert "Template set to <b>compact</b>" in message.answer.await_args.args[0]
+        kwargs = bot.send_message.await_args.kwargs
+        assert kwargs["text"] == "<b>Head</b>"
+        assert len(kwargs["reply_markup"].inline_keyboard) == 1
+
+    @pytest.mark.integration
+    async def test_unknown_template_rejected(self, sqlite_session_maker):
+        from handlers.bot.settings import handle_template
+
+        await seed(sqlite_session_maker)
+        message = MagicMock()
+        message.text = "/template fancy"
+        message.chat.id = -100
+        message.answer = AsyncMock()
+        async with sqlite_session_maker() as session:
+            await handle_template(message, session=session)
+            chat = await Chat.get(session, chat_id=-100)
+        assert "Unknown template" in message.answer.await_args.args[0]
+        assert chat.template == "verbose"

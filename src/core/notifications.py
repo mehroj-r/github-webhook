@@ -1,5 +1,6 @@
 """Resolve where a GitHub event should be delivered and send it."""
 
+import re
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -11,6 +12,27 @@ from core.utils.bot import edit_message, send_message
 from database.models import Chat, GithubRepository, SentMessage
 
 logger = get_logger(__name__)
+
+_BLOCKQUOTE = re.compile(r"\n?<blockquote>.*?</blockquote>", re.DOTALL)
+
+
+def compact_text(text: str) -> str:
+    """
+    Reduce a verbose notification to its headline lines.
+
+    Drops quoted bodies and detail lines (indented commit lists, bullet details), keeps
+    the summary lines so the message still says what happened, where and by whom.
+    """
+    text = _BLOCKQUOTE.sub("", text)
+    lines = [line for line in text.split("\n") if line.strip() and not line.startswith(("  ", "• "))]
+    return "\n".join(lines)
+
+
+def render_for(target: "NotificationTarget", text: str, url_buttons: list[tuple[str, str]] | None):
+    """Apply the chat's template to a message and its buttons."""
+    if target.chat.is_compact:
+        return compact_text(text), (url_buttons[:1] if url_buttons else url_buttons)
+    return text, url_buttons
 
 
 @dataclass(slots=True)
@@ -71,6 +93,7 @@ async def notify(target: NotificationTarget, text: str, url_buttons: list[tuple[
     """Send a notification to the resolved target. Returns the sent Telegram message."""
     from core.bot import bot
 
+    text, url_buttons = render_for(target, text, url_buttons)
     return await send_message(
         bot=bot, chat_id=target.chat_id, text=text, url_buttons=url_buttons, message_thread_id=target.thread_id
     )

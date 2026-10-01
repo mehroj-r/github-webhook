@@ -13,3 +13,8 @@ class DeliveryStatus(enum.StrEnum):
     PROCESSED = "processed"
     IGNORED = "ignored"
     FAILED = "failed"
+
+
+class MessageTemplate(enum.StrEnum):
+    VERBOSE = "verbose"
+    COMPACT = "compact"

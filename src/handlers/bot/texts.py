@@ -19,6 +19,7 @@ HELP_TEXT = (
     "/unmute [repo] — resume notifications\n"
     "/pause [repo] and /resume [repo] — switch a repository off and on indefinitely\n"
     "/topic [repo] — send from inside a forum topic to route notifications there (<code>clear</code> to reset)\n"
+    "/template compact|verbose — message style for this chat\n"
     "/status — settings, filters and last delivery for every connected repository\n"
     "/deliveries — show the latest webhook deliveries for connected repositories\n"
     "/help — show this message\n\n"
