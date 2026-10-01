@@ -15,7 +15,10 @@ logger = get_logger(__name__)
 async def handle(event: CreateEvent, session: AsyncSession) -> None:
     """Handle GitHub create events"""
 
-    target = await resolve_target(session, repo_name=event.repository.full_name, event_type=GHEventType.CREATE.value)
+    branch = event.ref_name if event.is_branch else None
+    target = await resolve_target(
+        session, repo_name=event.repository.full_name, event_type=GHEventType.CREATE.value, branch=branch
+    )
     if not target:
         return
 

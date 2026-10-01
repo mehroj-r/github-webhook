@@ -116,3 +116,76 @@ class TestEventsCommand:
                 await handle_event_toggle(query, session=session)
 
         query.answer.assert_awaited_once_with("Repository not found.", show_alert=True)
+
+
+class TestBranchAndMuteCommands:
+    @staticmethod
+    def message(text: str) -> MagicMock:
+        message = MagicMock()
+        message.text = text
+        message.chat.id = -100
+        message.answer = AsyncMock()
+        return message
+
+    @pytest.mark.integration
+    async def test_filter_branches_set_and_clear(self, sqlite_session_maker):
+        from handlers.bot.settings import handle_filter_branches
+
+        await seed(sqlite_session_maker)
+        async with sqlite_session_maker() as session:
+            await handle_filter_branches(self.message("/filter_branches main, release/*"), session=session)
+            await session.commit()
+            assert await resolve_target(session, REPO, "push", branch="feature/x") is None
+            assert await resolve_target(session, REPO, "push", branch="release/2") is not None
+            assert await resolve_target(session, REPO, "issues") is not None
+
+            await handle_filter_branches(self.message("/filter_branches clear"), session=session)
+            await session.commit()
+            assert await resolve_target(session, REPO, "push", branch="feature/x") is not None
+
+    @pytest.mark.integration
+    async def test_mute_and_unmute(self, sqlite_session_maker):
+        from handlers.bot.settings import handle_mute, handle_unmute
+
+        await seed(sqlite_session_maker)
+        muted = self.message("/mute 2h")
+        async with sqlite_session_maker() as session:
+            await handle_mute(muted, session=session)
+            await session.commit()
+            assert await resolve_target(session, REPO, "push") is None
+
+            await handle_unmute(self.message("/unmute"), session=session)
+            await session.commit()
+            assert await resolve_target(session, REPO, "push") is not None
+
+        assert "muted for 2h" in muted.answer.await_args.args[0]
+
+    @pytest.mark.integration
+    async def test_mute_rejects_bad_duration(self, sqlite_session_maker):
+        from handlers.bot.settings import handle_mute
+
+        await seed(sqlite_session_maker)
+        message = self.message("/mute forever")
+        async with sqlite_session_maker() as session:
+            await handle_mute(message, session=session)
+        assert "Give a duration" in message.answer.await_args.args[0]
+
+    @pytest.mark.integration
+    async def test_repo_must_be_named_when_several_connected(self, sqlite_session_maker):
+        from handlers.bot.settings import handle_mute
+
+        chat, _ = await seed(sqlite_session_maker)
+        async with sqlite_session_maker() as session:
+            await GithubRepository.create(session, title="octocat/Other", url="https://github.com/octocat/Other", chat_id=chat.id)
+            await session.commit()
+
+        ambiguous = self.message("/mute 1h")
+        explicit = self.message("/mute octocat/Other 1h")
+        async with sqlite_session_maker() as session:
+            await handle_mute(ambiguous, session=session)
+            await handle_mute(explicit, session=session)
+            await session.commit()
+            assert await resolve_target(session, "octocat/Other", "push") is None
+            assert await resolve_target(session, REPO, "push") is not None
+
+        assert "Several repositories" in ambiguous.answer.await_args.args[0]

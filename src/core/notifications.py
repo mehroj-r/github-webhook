@@ -23,12 +23,14 @@ class NotificationTarget:
         return self.chat.chat_id
 
 
-async def resolve_target(session: AsyncSession, repo_name: str, event_type: str) -> NotificationTarget | None:
+async def resolve_target(
+    session: AsyncSession, repo_name: str, event_type: str, branch: str | None = None
+) -> NotificationTarget | None:
     """
     Find the chat that should receive a notification for `repo_name` and `event_type`.
 
-    Returns None (and logs why) when the repository is unknown, not connected, paused,
-    the chat is inactive, or the event type is disabled for the repository.
+    Returns None (and logs why) when the repository is unknown, not connected, paused, muted,
+    the chat is inactive, the event type is disabled, or `branch` does not match the branch filter.
     """
     repo = await session.scalar(
         select(GithubRepository).options(selectinload(GithubRepository.chat)).where(GithubRepository.title == repo_name)
@@ -46,8 +48,16 @@ async def resolve_target(session: AsyncSession, repo_name: str, event_type: str)
         logger.info("Chat %s is inactive; skipping %s for %s", repo.chat.chat_id, event_type, repo_name)
         return None
 
+    if repo.is_muted:
+        logger.info("Repository %s is muted; skipping %s", repo_name, event_type)
+        return None
+
     if not repo.is_event_enabled(event_type):
         logger.info("Event %s is disabled for repository %s", event_type, repo_name)
+        return None
+
+    if not repo.is_branch_allowed(branch):
+        logger.info("Branch %s of %s does not match filter %s", branch, repo_name, repo.branch_filter)
         return None
 
     return NotificationTarget(repo=repo, chat=repo.chat)

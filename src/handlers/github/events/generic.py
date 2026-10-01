@@ -45,12 +45,32 @@ def _extract_details(event: event_models.BaseEvent) -> list[str]:
     return details
 
 
+def extract_branch(event: event_models.BaseEvent) -> str | None:
+    """Best-effort branch name for events that carry one, used for branch filtering."""
+    data = event.model_dump()
+    for path in (
+        ("workflow_run", "head_branch"),
+        ("check_suite", "head_branch"),
+        ("check_run", "check_suite", "head_branch"),
+        ("pull_request", "base", "ref"),
+        ("deployment", "ref"),
+    ):
+        value = data
+        for key in path:
+            value = value.get(key) if isinstance(value, dict) else None
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
 async def _notify(event_type: GHEventType, event: event_models.BaseEvent, session: AsyncSession) -> None:
     if not event.repository:
         logger.info("Skipping %s event without repository context", event_type.value)
         return
 
-    target = await resolve_target(session, repo_name=event.repository.full_name, event_type=event_type.value)
+    target = await resolve_target(
+        session, repo_name=event.repository.full_name, event_type=event_type.value, branch=extract_branch(event)
+    )
     if not target:
         return
 

@@ -19,7 +19,10 @@ async def handle(event: PushEvent, session: AsyncSession) -> None:
     if any([event.deleted, event.created]):
         return
 
-    target = await resolve_target(session, repo_name=event.repository.full_name, event_type=GHEventType.PUSH.value)
+    branch = event.ref_name if event.is_branch else None
+    target = await resolve_target(
+        session, repo_name=event.repository.full_name, event_type=GHEventType.PUSH.value, branch=branch
+    )
     if not target:
         return
 

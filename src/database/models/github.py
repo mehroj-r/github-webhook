@@ -1,8 +1,10 @@
+from datetime import UTC, datetime, timedelta
+from fnmatch import fnmatchcase
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pydantic import HttpUrl
-from sqlalchemy import JSON, ForeignKey, String
+from sqlalchemy import JSON, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from database.models.base import Base, TimestampMixin
@@ -20,6 +22,10 @@ class GithubRepository(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(default=True)
     # NULL means "use the default event set"; otherwise the explicit list of enabled toggle keys
     enabled_events: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    # Comma-separated glob patterns; only matching branches are reported when set
+    branch_filter: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Notifications are suppressed until this moment
+    muted_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     chat: Mapped["Chat | None"] = relationship(back_populates="repositories")
 
@@ -60,3 +66,29 @@ class GithubRepository(Base, TimestampMixin):
         else:
             enabled.add(key)
         return [k for k in EVENT_KEYS if k in enabled]
+
+    @property
+    def branch_patterns(self) -> list[str]:
+        if not self.branch_filter:
+            return []
+        return [pattern.strip() for pattern in self.branch_filter.split(",") if pattern.strip()]
+
+    def is_branch_allowed(self, branch: str | None) -> bool:
+        """Whether a branch passes the filter. Events without a branch always pass."""
+        patterns = self.branch_patterns
+        if branch is None or not patterns:
+            return True
+        return any(fnmatchcase(branch, pattern) for pattern in patterns)
+
+    @property
+    def mute_remaining(self) -> timedelta | None:
+        """Time left on the mute, or None when not muted."""
+        if self.muted_until is None:
+            return None
+        until = self.muted_until if self.muted_until.tzinfo else self.muted_until.replace(tzinfo=UTC)
+        remaining = until - datetime.now(UTC)
+        return remaining if remaining.total_seconds() > 0 else None
+
+    @property
+    def is_muted(self) -> bool:
+        return self.mute_remaining is not None

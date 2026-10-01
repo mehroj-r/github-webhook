@@ -53,3 +53,31 @@ class TestRepositoryEventSettings:
         repo = GithubRepository(title="o/r", url="https://github.com/o/r", enabled_events=[OTHER_EVENTS_KEY])
         assert repo.is_event_enabled("gollum") is True
         assert repo.is_event_enabled("push") is False
+
+
+class TestBranchFilterAndMute:
+    @pytest.mark.unit
+    def test_branch_filter_globs(self):
+        repo = GithubRepository(title="o/r", url="https://github.com/o/r", branch_filter="main, release/*")
+        assert repo.branch_patterns == ["main", "release/*"]
+        assert repo.is_branch_allowed("main")
+        assert repo.is_branch_allowed("release/1.2")
+        assert not repo.is_branch_allowed("feature/x")
+        assert repo.is_branch_allowed(None)  # events without a branch pass
+
+    @pytest.mark.unit
+    def test_no_filter_allows_everything(self):
+        repo = GithubRepository(title="o/r", url="https://github.com/o/r")
+        assert repo.is_branch_allowed("anything")
+
+    @pytest.mark.unit
+    def test_mute_state(self):
+        from datetime import UTC, datetime, timedelta
+
+        repo = GithubRepository(title="o/r", url="https://github.com/o/r")
+        assert repo.is_muted is False
+        repo.muted_until = datetime.now(UTC) + timedelta(hours=1)
+        assert repo.is_muted is True
+        # naive timestamps (as SQLite returns them) are treated as UTC
+        repo.muted_until = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=1)
+        assert repo.is_muted is False
