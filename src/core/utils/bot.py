@@ -1,8 +1,47 @@
+import asyncio
+from collections.abc import Awaitable, Callable
+
+from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+
+from core import get_logger
+
+logger = get_logger(__name__)
 
 # Telegram hard limit for a single text message
 MAX_MESSAGE_LENGTH = 4096
 TRUNCATION_SUFFIX = "\n\n<i>... (truncated)</i>"
+
+# Retry policy for Telegram API calls
+MAX_ATTEMPTS = 4
+MAX_RETRY_AFTER = 60  # seconds; longer flood waits are given up on
+NETWORK_BACKOFF = (1, 3, 7)
+
+
+async def with_retry[T](operation: Callable[[], Awaitable[T]], description: str = "telegram call") -> T:
+    """
+    Run a Telegram API call, honouring flood-control waits and retrying transient network errors.
+
+    TelegramRetryAfter: sleep for the requested time (bounded) and retry.
+    TelegramNetworkError: exponential-ish backoff. Other API errors are raised immediately.
+    """
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            return await operation()
+        except TelegramRetryAfter as e:
+            if attempt == MAX_ATTEMPTS or e.retry_after > MAX_RETRY_AFTER:
+                raise
+            logger.warning("%s rate limited; retrying in %ss (attempt %s)", description, e.retry_after, attempt)
+            await asyncio.sleep(e.retry_after)
+        except TelegramNetworkError as e:
+            if attempt == MAX_ATTEMPTS:
+                raise
+            delay = NETWORK_BACKOFF[min(attempt, len(NETWORK_BACKOFF)) - 1]
+            logger.warning(
+                "%s failed with network error %s; retrying in %ss (attempt %s)", description, e, delay, attempt
+            )
+            await asyncio.sleep(delay)
+    raise RuntimeError("unreachable")  # pragma: no cover
 
 
 def truncate_message(text: str, limit: int = MAX_MESSAGE_LENGTH) -> str:
@@ -29,11 +68,14 @@ async def send_message(
         url_buttons: Optional list of tuples (button_text, url) for inline keyboard buttons
         message_thread_id: Forum topic to post into (supergroups with topics enabled)
     """
-    return await bot.send_message(
-        chat_id=chat_id,
-        text=truncate_message(text),
-        reply_markup=build_url_keyboard(url_buttons),
-        message_thread_id=message_thread_id,
+    return await with_retry(
+        lambda: bot.send_message(
+            chat_id=chat_id,
+            text=truncate_message(text),
+            reply_markup=build_url_keyboard(url_buttons),
+            message_thread_id=message_thread_id,
+        ),
+        description=f"send_message to {chat_id}",
     )
 
 
@@ -47,9 +89,12 @@ def build_url_keyboard(url_buttons: list[tuple[str, str]] | None) -> InlineKeybo
 
 async def edit_message(bot, chat_id: int, message_id: int, text: str, url_buttons: list[tuple[str, str]] | None = None):
     """Replace the text and buttons of a message the bot sent earlier."""
-    return await bot.edit_message_text(
-        chat_id=chat_id,
-        message_id=message_id,
-        text=truncate_message(text),
-        reply_markup=build_url_keyboard(url_buttons),
+    return await with_retry(
+        lambda: bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=truncate_message(text),
+            reply_markup=build_url_keyboard(url_buttons),
+        ),
+        description=f"edit_message in {chat_id}",
     )
