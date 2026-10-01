@@ -10,7 +10,8 @@ from core.decorators import parse_command
 from database.enums import ChatType
 from database.models import Chat, GithubRepository, WebhookDelivery
 
-from .validators.chat import ConnectRepoCommandValidator
+from .texts import HELP_TEXT
+from .validators.chat import ConnectRepoCommandValidator, DisconnectRepoCommandValidator
 
 router = Router()
 
@@ -20,11 +21,8 @@ router = Router()
 async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSession) -> None:
     msg = await message.answer("🔗 Connecting chat to repository...")
 
-    # Check if this repository ever pinged via webhook (URLs are stored without trailing slash)
-    normalized_url = repo_url.strip().rstrip("/")
-    repo = await session.scalar(
-        select(GithubRepository).where(func.lower(GithubRepository.url) == normalized_url.lower())
-    )
+    # Check if this repository ever pinged via webhook
+    repo = await _find_repo_by_url(session, repo_url)
 
     if not repo:
         await msg.edit_text(
@@ -58,6 +56,43 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
     await msg.edit_text("ℹ️ This chat is already connected to the specified repository.")
 
 
+@router.message(Command("disconnect_repo"))
+@parse_command(arguments=["repo_url"], validator=DisconnectRepoCommandValidator())
+async def handle_disconnect_repo(message: Message, repo_url: str, session: AsyncSession) -> None:
+    repo = await _find_repo_by_url(session, repo_url)
+    chat = await Chat.get(session, chat_id=message.chat.id)
+
+    if not repo or not chat or repo.chat_id != chat.id:
+        await message.answer("ℹ️ This repository is not connected to this chat.")
+        return
+
+    await repo.update(session=session, chat_id=None)
+    await message.answer(f"🔌 Disconnected <b>{escape(repo.title)}</b>. Notifications for it will stop.")
+
+
+@router.message(Command("repos"))
+async def handle_repos(message: Message, session: AsyncSession) -> None:
+    """List repositories connected to this chat."""
+    chat = await Chat.get(session, chat_id=message.chat.id)
+    repos = await GithubRepository.filter(session, chat_id=chat.id) if chat else []
+
+    if not repos:
+        await message.answer("ℹ️ No repositories are connected to this chat yet. Use /connect_repo to add one.")
+        return
+
+    lines = ["<b>📚 Connected repositories</b>"]
+    for repo in sorted(repos, key=lambda r: r.title.lower()):
+        state = "" if repo.is_active else " (paused)"
+        lines.append(f"• <a href='{repo.url}'>{escape(repo.title)}</a>{state}")
+
+    await message.answer("\n".join(lines))
+
+
+@router.message(Command("help"))
+async def handle_help(message: Message) -> None:
+    await message.answer(HELP_TEXT)
+
+
 STATUS_ICONS = {"processed": "✅", "ignored": "⏭", "failed": "❌", "received": "⏳"}
 
 
@@ -87,6 +122,14 @@ async def handle_deliveries(message: Message, session: AsyncSession) -> None:
         lines.append(line)
 
     await message.answer("\n".join(lines))
+
+
+async def _find_repo_by_url(session: AsyncSession, repo_url: str) -> GithubRepository | None:
+    """Look a registered repository up by URL, ignoring case and trailing slashes."""
+    normalized_url = repo_url.strip().rstrip("/")
+    return await session.scalar(
+        select(GithubRepository).where(func.lower(GithubRepository.url) == normalized_url.lower())
+    )
 
 
 def _resolve_chat_type(telegram_chat_type: str) -> ChatType:
