@@ -5,6 +5,7 @@ import sys
 from config import settings
 from core import get_logger
 from core.bot import init_bot, shutdown_bot
+from core.digest import start_scheduler, stop_scheduler
 from core.server import start_fastapi_server
 from database import close_db
 
@@ -26,6 +27,7 @@ async def main() -> None:
 
     try:
         await init_bot()
+        start_scheduler()
 
         if settings.USE_WEBHOOK:
             logger.info("Starting in webhook mode with FastAPI server")
@@ -56,6 +58,7 @@ def _request_shutdown(sig: signal.Signals, stop_event: asyncio.Event) -> None:
 async def shutdown() -> None:
     """Shutdown the bot and release database connections"""
     logger.info("Initiating shutdown...")
+    await stop_scheduler()
     await shutdown_bot()
     await close_db()
     logger.info("Shutdown complete")

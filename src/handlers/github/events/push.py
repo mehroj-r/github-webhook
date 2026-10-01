@@ -32,7 +32,7 @@ async def handle(event: PushEvent, session: AsyncSession) -> None:
     message = await _build_commit_message(event=event)
     buttons = await _build_inline_buttons(event=event)
 
-    await notify(target, text=message, url_buttons=buttons)
+    await notify(target, text=message, url_buttons=buttons, session=session, event_type=GHEventType.PUSH.value)
 
 
 async def _build_commit_message(event: PushEvent) -> str:

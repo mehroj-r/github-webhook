@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pydantic import HttpUrl
-from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, String
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from database.models.base import Base, TimestampMixin
@@ -28,6 +28,8 @@ class GithubRepository(Base, TimestampMixin):
     muted_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Forum topic (message thread) inside the chat that receives notifications
     message_thread_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # When set, notifications are collected and posted as one digest per interval
+    digest_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     chat: Mapped["Chat | None"] = relationship(back_populates="repositories")
 
@@ -94,3 +96,7 @@ class GithubRepository(Base, TimestampMixin):
     @property
     def is_muted(self) -> bool:
         return self.mute_remaining is not None
+
+    @property
+    def digest_enabled(self) -> bool:
+        return bool(self.digest_interval_minutes)

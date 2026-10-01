@@ -95,7 +95,13 @@ async def _notify(event_type: GHEventType, event: event_models.BaseEvent, sessio
 
     message += details_block
 
-    await notify(target, text=message, url_buttons=[("📂 View Repository", str(event.repository.html_url))])
+    await notify(
+        target,
+        text=message,
+        url_buttons=[("📂 View Repository", str(event.repository.html_url))],
+        session=session,
+        event_type=event_type.value,
+    )
 
 
 EVENT_MODEL_MAP: dict[GHEventType, type[event_models.BaseEvent]] = {

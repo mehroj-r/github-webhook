@@ -44,7 +44,7 @@ async def handle(event: PingEvent, session: AsyncSession) -> None:
     message = await _build_commit_message(event)
     buttons = await _build_inline_buttons(event)
 
-    await notify(target, text=message, url_buttons=buttons)
+    await notify(target, text=message, url_buttons=buttons, session=session, event_type=GHEventType.PING.value)
 
 
 async def _build_commit_message(event: PingEvent) -> str:

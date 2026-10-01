@@ -29,7 +29,13 @@ async def handle(event: PullRequestReviewEvent, session: AsyncSession) -> None:
     if not target:
         return
 
-    await notify(target, text=build_message(event), url_buttons=build_buttons(event))
+    await notify(
+        target,
+        text=build_message(event),
+        url_buttons=build_buttons(event),
+        session=session,
+        event_type=GHEventType.PULL_REQUEST_REVIEW.value,
+    )
 
 
 def build_message(event: PullRequestReviewEvent) -> str:

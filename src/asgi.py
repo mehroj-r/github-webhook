@@ -12,6 +12,7 @@ from api import setup_api_routers
 from config import settings
 from core import get_logger
 from core.bot import init_bot, shutdown_bot
+from core.digest import start_scheduler, stop_scheduler
 from database import close_db
 
 logger = get_logger(__name__)
@@ -35,10 +36,13 @@ async def lifespan(_: FastAPI):
         logger.error(f"Failed to initialize bot: {e}", exc_info=True)
         raise
 
+    start_scheduler()
+
     yield
 
     # Shutdown
     logger.info("Shutting down application...")
+    await stop_scheduler()
     try:
         await shutdown_bot()
         logger.info("Bot shutdown completed")

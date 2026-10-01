@@ -284,6 +284,8 @@ def _describe_repo(repo: GithubRepository, last: WebhookDelivery | None) -> str:
     )
     if repo.message_thread_id:
         lines.append(f"  🧵 topic: <code>{repo.message_thread_id}</code>")
+    if repo.digest_enabled:
+        lines.append(f"  📰 digest: every {repo.digest_interval_minutes}m")
 
     if last and last.created_at:
         event = last.event_type + (f"/{last.action}" if last.action else "")
@@ -341,3 +343,50 @@ async def handle_template(message: Message, session: AsyncSession) -> None:
         else "bodies, commit lists and all buttons"
     )
     await message.answer(f"🎨 Template set to <b>{template.value}</b> ({hint}).")
+
+
+@router.message(Command("digest"), ChatAdminFilter())
+async def handle_digest(message: Message, session: AsyncSession) -> None:
+    """Batch a repository's notifications: /digest [repo] 1h  |  /digest [repo] off  |  /digest [repo] now"""
+    repo, args, error = await _pick_repo(session, message)
+    if error or repo is None:
+        await message.answer(error or "Repository not found.")
+        return
+
+    if not args:
+        current = f"every {repo.digest_interval_minutes}m" if repo.digest_enabled else "off (immediate notifications)"
+        await message.answer(
+            f"📰 Digest for <b>{escape(repo.title)}</b>: <b>{escape(current)}</b>\n"
+            "Usage: <code>/digest [repo] 30m|2h|1d</code>, <code>/digest [repo] off</code> or <code>/digest [repo] now</code>"
+        )
+        return
+
+    choice = args[0].lower()
+    if choice in {"off", "disable", "none"}:
+        from core.digest import flush_repo
+
+        sent = await flush_repo(session, repo, force=True)
+        await repo.update(session, digest_interval_minutes=None)
+        tail = " Pending items were posted." if sent else ""
+        await message.answer(
+            f"📰 Digest disabled for <b>{escape(repo.title)}</b>. Notifications are immediate again.{tail}"
+        )
+        return
+
+    if choice == "now":
+        from core.digest import flush_repo
+
+        sent = await flush_repo(session, repo, force=True)
+        await message.answer("📰 Digest posted." if sent else "📰 Nothing pending for the digest.")
+        return
+
+    duration = parse_duration(choice)
+    if duration is None or duration < timedelta(minutes=5) or duration > timedelta(days=7):
+        await message.answer("❌ Give an interval between <code>5m</code> and <code>7d</code>, or <code>off</code>.")
+        return
+
+    minutes = int(duration.total_seconds() // 60)
+    await repo.update(session, digest_interval_minutes=minutes)
+    await message.answer(
+        f"📰 <b>{escape(repo.title)}</b> notifications will be batched every {format_duration(duration)}."
+    )
