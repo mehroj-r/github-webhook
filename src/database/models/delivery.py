@@ -71,3 +71,8 @@ class WebhookDelivery(Base, TimestampMixin):
             return []
         stmt = select(cls).where(cls.repo_name.in_(repo_names)).order_by(cls.created_at.desc()).limit(limit)
         return list((await session.execute(stmt)).scalars().all())
+
+    @classmethod
+    async def latest_for_repo(cls, session: AsyncSession, repo_name: str) -> "WebhookDelivery | None":
+        stmt = select(cls).where(cls.repo_name == repo_name).order_by(cls.created_at.desc()).limit(1)
+        return (await session.execute(stmt)).scalars().first()

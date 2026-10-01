@@ -11,7 +11,7 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.utils.duration import format_duration, parse_duration
-from database.models import Chat, GithubRepository
+from database.models import Chat, GithubRepository, WebhookDelivery
 from handlers.github.catalog import EVENT_KEYS, EVENT_LABELS
 
 from .filters import ChatAdminFilter
@@ -265,3 +265,47 @@ async def handle_topic(message: Message, session: AsyncSession) -> None:
 
     await repo.update(session, message_thread_id=thread_id)
     await message.answer(f"🧵 <b>{escape(repo.title)}</b> notifications will be posted in this topic.")
+
+
+def _describe_repo(repo: GithubRepository, last: WebhookDelivery | None) -> str:
+    enabled = [EVENT_LABELS[k] for k in EVENT_KEYS if k in repo.enabled_event_keys]
+    lines = [f"<b><a href='{repo.url}'>{escape(repo.title)}</a></b>"]
+
+    if not repo.is_active:
+        lines.append("  ⏸ paused")
+    remaining = repo.mute_remaining
+    if remaining:
+        lines.append(f"  🔕 muted for {format_duration(remaining)}")
+
+    lines.append(f"  🔔 events: {escape(', '.join(enabled)) if enabled else 'none'}")
+    lines.append(
+        f"  🌿 branches: <code>{escape(repo.branch_filter)}</code>" if repo.branch_filter else "  🌿 branches: all"
+    )
+    if repo.message_thread_id:
+        lines.append(f"  🧵 topic: <code>{repo.message_thread_id}</code>")
+
+    if last and last.created_at:
+        event = last.event_type + (f"/{last.action}" if last.action else "")
+        lines.append(
+            f"  📬 last delivery: <code>{escape(event)}</code> ({last.status}) at {last.created_at:%Y-%m-%d %H:%M} UTC"
+        )
+    else:
+        lines.append("  📬 last delivery: none recorded")
+
+    return "\n".join(lines)
+
+
+@router.message(Command("status", "settings"))
+async def handle_status(message: Message, session: AsyncSession) -> None:
+    """Overview of every repository connected to this chat and its notification settings."""
+    repos = await _chat_repos(session, message.chat.id)
+    if not repos:
+        await message.answer("ℹ️ No repositories are connected to this chat yet. Use /connect_repo first.")
+        return
+
+    blocks = []
+    for repo in sorted(repos, key=lambda r: r.title.lower()):
+        last = await WebhookDelivery.latest_for_repo(session, repo.title)
+        blocks.append(_describe_repo(repo, last))
+
+    await message.answer("<b>📊 Chat status</b>\n\n" + "\n\n".join(blocks))

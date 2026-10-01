@@ -278,3 +278,47 @@ class TestTopicRouting:
             await session.commit()
             repo = await GithubRepository.get(session, title=REPO)
         assert repo.message_thread_id is None
+
+
+class TestStatus:
+    @pytest.mark.integration
+    async def test_status_summarises_settings(self, sqlite_session_maker):
+        from datetime import UTC, datetime, timedelta
+
+        from database.enums import DeliveryStatus
+        from database.models import WebhookDelivery
+        from handlers.bot.settings import handle_status
+
+        _, repo = await seed(sqlite_session_maker, enabled_events=["push", "issues"])
+        async with sqlite_session_maker() as session:
+            stored = await GithubRepository.get(session, title=REPO)
+            await stored.update(
+                session,
+                branch_filter="main",
+                muted_until=datetime.now(UTC) + timedelta(hours=2),
+                message_thread_id=5,
+            )
+            row, _ = await WebhookDelivery.start(session, delivery_id="s-1", event_type="push")
+            await row.finish(session, DeliveryStatus.PROCESSED, repo_name=REPO)
+            await session.commit()
+
+        message = TestBranchAndMuteCommands.message("/status")
+        async with sqlite_session_maker() as session:
+            await handle_status(message, session=session)
+
+        text = message.answer.await_args.args[0]
+        assert REPO in text
+        assert "events: Pushes, Issues" in text
+        assert "branches: <code>main</code>" in text
+        assert "muted for" in text
+        assert "topic: <code>5</code>" in text
+        assert "last delivery: <code>push</code> (processed)" in text
+
+    @pytest.mark.integration
+    async def test_status_without_repos(self, sqlite_session_maker):
+        from handlers.bot.settings import handle_status
+
+        message = TestBranchAndMuteCommands.message("/status")
+        async with sqlite_session_maker() as session:
+            await handle_status(message, session=session)
+        assert "No repositories" in message.answer.await_args.args[0]
