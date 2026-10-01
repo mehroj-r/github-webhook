@@ -48,3 +48,26 @@ def async_client():
     from httpx import AsyncClient
 
     return AsyncClient()
+
+
+@pytest.fixture
+async def sqlite_session_maker():
+    """In-memory SQLite database with all tables created, for model/route tests without Postgres."""
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import StaticPool
+
+    from database.models.base import Base
+
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    try:
+        yield maker
+    finally:
+        await engine.dispose()

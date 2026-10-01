@@ -35,10 +35,11 @@ def _headers(body: bytes, event: str = "ping", secret: str | None = SECRET) -> d
 
 
 @pytest.fixture
-def client():
+def client(sqlite_session_maker):
     app = FastAPI()
     setup_api_routers(app)
-    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    with patch("api.github.async_session_maker", sqlite_session_maker):
+        yield AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
 class TestGitHubWebhookRoute:

@@ -1,3 +1,5 @@
+from html import escape
+
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
@@ -6,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.decorators import parse_command
 from database.enums import ChatType
-from database.models import Chat, GithubRepository
+from database.models import Chat, GithubRepository, WebhookDelivery
 
 from .validators.chat import ConnectRepoCommandValidator
 
@@ -54,6 +56,37 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
         return
 
     await msg.edit_text("ℹ️ This chat is already connected to the specified repository.")
+
+
+STATUS_ICONS = {"processed": "✅", "ignored": "⏭", "failed": "❌", "received": "⏳"}
+
+
+@router.message(Command("deliveries"))
+async def handle_deliveries(message: Message, session: AsyncSession) -> None:
+    """Show the most recent webhook deliveries for repositories connected to this chat."""
+    chat = await Chat.get(session, chat_id=message.chat.id)
+    repos = await GithubRepository.filter(session, chat_id=chat.id) if chat else []
+
+    if not repos:
+        await message.answer("ℹ️ No repositories are connected to this chat yet. Use /connect_repo first.")
+        return
+
+    deliveries = await WebhookDelivery.latest_for_repos(session, [repo.title for repo in repos], limit=10)
+    if not deliveries:
+        await message.answer("ℹ️ No webhook deliveries recorded for the connected repositories yet.")
+        return
+
+    lines = ["<b>📬 Last webhook deliveries</b>"]
+    for delivery in deliveries:
+        icon = STATUS_ICONS.get(delivery.status, "•")
+        event = delivery.event_type + (f"/{delivery.action}" if delivery.action else "")
+        when = delivery.created_at.strftime("%Y-%m-%d %H:%M") if delivery.created_at else "-"
+        line = f"{icon} <code>{when}</code> {escape(delivery.repo_name or '-')} — <code>{escape(event)}</code>"
+        if delivery.error:
+            line += f"\n    <i>{escape(delivery.error[:120])}</i>"
+        lines.append(line)
+
+    await message.answer("\n".join(lines))
 
 
 def _resolve_chat_type(telegram_chat_type: str) -> ChatType:
