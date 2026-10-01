@@ -17,6 +17,7 @@ class Chat(Base, TimestampMixin):
     title: Mapped[str | None] = mapped_column(String(255))
     chat_type: Mapped[ChatType] = mapped_column(Enum(ChatType), default=ChatType.PRIVATE)
     is_active: Mapped[bool] = mapped_column(default=True)
+    managed_by_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     repositories: Mapped[list["GithubRepository"]] = relationship(back_populates="chat")
 

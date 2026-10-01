@@ -20,6 +20,7 @@ def make_message(text: str, chat_id: int = -100123, chat_type: str = "supergroup
     message.chat.type = chat_type
     message.chat.title = "Dev team"
     message.chat.full_name = "Dev team"
+    message.from_user.id = 777
     status_message = MagicMock()
     status_message.edit_text = AsyncMock()
     message.answer = AsyncMock(return_value=status_message)
@@ -63,6 +64,7 @@ class TestConnectRepo:
 
         assert chat is not None
         assert chat.chat_type.value == "supergroup"
+        assert chat.managed_by_user_id == 777
         assert repo.chat_id == chat.id
         assert any("connected successfully" in text for text in replies(message))
 

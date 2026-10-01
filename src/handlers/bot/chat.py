@@ -10,13 +10,14 @@ from core.decorators import parse_command
 from database.enums import ChatType
 from database.models import Chat, GithubRepository, WebhookDelivery
 
+from .filters import ChatAdminFilter
 from .texts import HELP_TEXT
 from .validators.chat import ConnectRepoCommandValidator, DisconnectRepoCommandValidator
 
 router = Router()
 
 
-@router.message(Command("connect_repo"))
+@router.message(Command("connect_repo"), ChatAdminFilter())
 @parse_command(arguments=["repo_url"], validator=ConnectRepoCommandValidator())
 async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSession) -> None:
     msg = await message.answer("🔗 Connecting chat to repository...")
@@ -31,7 +32,7 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
         )
         return
 
-    # Create chat instance if not exists
+    # Create chat instance if not exists and remember who manages it
     chat, _ = await Chat.get_or_create(
         session=session,
         chat_id=message.chat.id,
@@ -40,6 +41,8 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
             "title": message.chat.title or message.chat.full_name,
         },
     )
+    if message.from_user and chat.managed_by_user_id != message.from_user.id:
+        await chat.update(session=session, managed_by_user_id=message.from_user.id)
 
     if not repo.chat_id:
         await repo.update(session=session, chat_id=chat.id)
@@ -56,7 +59,7 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
     await msg.edit_text("ℹ️ This chat is already connected to the specified repository.")
 
 
-@router.message(Command("disconnect_repo"))
+@router.message(Command("disconnect_repo"), ChatAdminFilter())
 @parse_command(arguments=["repo_url"], validator=DisconnectRepoCommandValidator())
 async def handle_disconnect_repo(message: Message, repo_url: str, session: AsyncSession) -> None:
     repo = await _find_repo_by_url(session, repo_url)
