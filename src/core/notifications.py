@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core import get_logger
-from core.utils.bot import send_message
-from database.models import Chat, GithubRepository
+from core.utils.bot import edit_message, send_message
+from database.models import Chat, GithubRepository, SentMessage
 
 logger = get_logger(__name__)
 
@@ -67,10 +67,42 @@ async def resolve_target(
     return NotificationTarget(repo=repo, chat=repo.chat)
 
 
-async def notify(target: NotificationTarget, text: str, url_buttons: list[tuple[str, str]] | None = None) -> None:
-    """Send a notification to the resolved target."""
+async def notify(target: NotificationTarget, text: str, url_buttons: list[tuple[str, str]] | None = None):
+    """Send a notification to the resolved target. Returns the sent Telegram message."""
     from core.bot import bot
 
-    await send_message(
+    return await send_message(
         bot=bot, chat_id=target.chat_id, text=text, url_buttons=url_buttons, message_thread_id=target.thread_id
+    )
+
+
+async def notify_or_edit(
+    session: AsyncSession,
+    target: NotificationTarget,
+    key: str,
+    text: str,
+    url_buttons: list[tuple[str, str]] | None = None,
+) -> None:
+    """
+    Edit the message previously sent for `key` (per repository), or send a new one and remember it.
+
+    Used for objects with a lifecycle (workflow runs) so one message is updated instead of
+    posting once per state change. Falls back to a new message when editing fails, e.g. because
+    the original was deleted or is too old.
+    """
+    from core.bot import bot
+
+    previous = await SentMessage.find(session, repo_name=target.repo.title, key=key)
+    if previous and previous.chat_id == target.chat_id:
+        try:
+            await edit_message(
+                bot, chat_id=previous.chat_id, message_id=previous.message_id, text=text, url_buttons=url_buttons
+            )
+            return
+        except Exception as e:
+            logger.warning("Could not edit message %s for %s/%s: %s", previous.message_id, target.repo.title, key, e)
+
+    sent = await notify(target, text=text, url_buttons=url_buttons)
+    await SentMessage.remember(
+        session, repo_name=target.repo.title, key=key, chat_id=target.chat_id, message_id=sent.message_id
     )

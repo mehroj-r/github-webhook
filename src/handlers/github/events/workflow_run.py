@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.decorators import GitHubEventRegistry
 from core.enums import GHEventType
-from core.notifications import notify, resolve_target
+from core.notifications import notify_or_edit, resolve_target
 from core.utils.duration import format_duration
 from handlers.github.formatting import repo_link, user_link
 from handlers.github.models.events import WorkflowRunEvent
@@ -24,8 +24,8 @@ CONCLUSION_ICONS = {
 
 @GitHubEventRegistry.register(event=GHEventType.WORKFLOW_RUN)
 async def handle(event: WorkflowRunEvent, session: AsyncSession) -> None:
-    """Handle GitHub workflow_run events (start and completion of a workflow)"""
-    if event.action not in {"requested", "completed"} or not event.repository:
+    """Handle GitHub workflow_run events: one message per run, edited as the run progresses"""
+    if event.action not in {"requested", "in_progress", "completed"} or not event.repository:
         return
 
     target = await resolve_target(
@@ -37,7 +37,14 @@ async def handle(event: WorkflowRunEvent, session: AsyncSession) -> None:
     if not target:
         return
 
-    await notify(target, text=build_message(event), url_buttons=build_buttons(event))
+    await notify_or_edit(
+        session, target, key=message_key(event), text=build_message(event), url_buttons=build_buttons(event)
+    )
+
+
+def message_key(event: WorkflowRunEvent) -> str:
+    run = event.workflow_run
+    return f"workflow_run:{run.get('id')}:{run.get('run_attempt') or 1}"
 
 
 def _duration(run: dict) -> str:
@@ -64,8 +71,10 @@ def build_message(event: WorkflowRunEvent) -> str:
         conclusion = str(run.get("conclusion") or "unknown")
         icon = CONCLUSION_ICONS.get(conclusion, "ℹ️")
         title = f"{icon} Workflow {conclusion.replace('_', ' ')}{_duration(run)}"
+    elif event.action == "in_progress":
+        title = "🏃 Workflow running"
     else:
-        title = "🏃 Workflow started"
+        title = "⏳ Workflow queued"
 
     return (
         f"<b>{title}</b> in {repo_link(event)}\n"

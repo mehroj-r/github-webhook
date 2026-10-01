@@ -150,7 +150,7 @@ class TestReleaseAndCI:
         assert "❌ Workflow failure in 5m" in text
         assert "CI #12</a> (attempt 2)" in text
         started = m.WorkflowRunEvent.model_validate(base(action="requested", workflow_run=run, workflow={"name": "CI"}))
-        assert "Workflow started" in workflow_run.build_message(started)
+        assert "Workflow queued" in workflow_run.build_message(started)
 
     @pytest.mark.unit
     def test_check_suite(self):

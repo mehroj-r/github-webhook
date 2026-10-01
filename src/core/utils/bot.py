@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 # Telegram hard limit for a single text message
 MAX_MESSAGE_LENGTH = 4096
@@ -18,7 +18,7 @@ async def send_message(
     text: str,
     url_buttons: list[tuple[str, str]] | None = None,
     message_thread_id: int | None = None,
-) -> None:
+) -> Message:
     """
     Send a message using the bot instance with optional URL buttons
 
@@ -29,16 +29,27 @@ async def send_message(
         url_buttons: Optional list of tuples (button_text, url) for inline keyboard buttons
         message_thread_id: Forum topic to post into (supergroups with topics enabled)
     """
-    reply_markup = None
-
-    if url_buttons:
-        # Create inline keyboard with URL buttons
-        keyboard = [[InlineKeyboardButton(text=button_text, url=url)] for button_text, url in url_buttons]
-        reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-    await bot.send_message(
+    return await bot.send_message(
         chat_id=chat_id,
         text=truncate_message(text),
-        reply_markup=reply_markup,
+        reply_markup=build_url_keyboard(url_buttons),
         message_thread_id=message_thread_id,
+    )
+
+
+def build_url_keyboard(url_buttons: list[tuple[str, str]] | None) -> InlineKeyboardMarkup | None:
+    """Inline keyboard with one URL button per row, or None when there are no buttons."""
+    if not url_buttons:
+        return None
+    keyboard = [[InlineKeyboardButton(text=button_text, url=url)] for button_text, url in url_buttons]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+async def edit_message(bot, chat_id: int, message_id: int, text: str, url_buttons: list[tuple[str, str]] | None = None):
+    """Replace the text and buttons of a message the bot sent earlier."""
+    return await bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=message_id,
+        text=truncate_message(text),
+        reply_markup=build_url_keyboard(url_buttons),
     )
