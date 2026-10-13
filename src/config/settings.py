@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     # Observability
     METRICS_TOKEN: str = ""  # when set, /misc/metrics requires "Authorization: Bearer <token>"
 
+    # Admin dashboard (/admin, HTTP Basic auth); disabled while ADMIN_PASSWORD is empty
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = ""
+
     # FastAPI Server Settings
     HOST: str = "0.0.0.0"
     PORT: int = 8000

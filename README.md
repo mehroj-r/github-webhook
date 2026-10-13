@@ -120,6 +120,8 @@ The FastAPI server includes:
 - `/misc/health` - Health check: database (`SELECT 1`) and Telegram (`get_me`, cached 60s); 503 only when the database is down
 - `/misc/metrics` - Prometheus metrics (`gh_webhook_deliveries_total`, `telegram_request_duration_seconds`); set `PROMETHEUS_MULTIPROC_DIR` when running several Gunicorn workers (the Docker image does); protect it with `METRICS_TOKEN`
 - `/webhook` (or your custom WEBHOOK_PATH) - Telegram webhook endpoint
+- `/admin` - Admin dashboard (chats, repositories, deliveries, digest items, bot admins). Enabled by setting
+  `ADMIN_PASSWORD` (user `ADMIN_USERNAME`, default `admin`); protected by HTTP Basic auth, so serve it over HTTPS only
 
 ## Architecture
 

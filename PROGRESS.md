@@ -35,7 +35,8 @@ uv run alembic -c src/database/alembic.ini heads
 
 | Commit | Feature | Notes |
 | --- | --- | --- |
-| `_pending_` | `bot_admins` table | `BotAdmin` model (migration `5b7d9f2a4c63`); `/admins`, `/admin_add <user_id> [name]` (or reply), `/admin_remove` in `handlers/bot/admins.py` behind `BotOwnerFilter` (MASTER_CHAT_ID only). `is_bot_admin()` opens its own session; bot admins pass `ChatAdminFilter` in any group; DB errors fall back to the Telegram admin check |
+| `_pending_` | Admin web dashboard | `api/admin.py`: sqladmin at `/admin`, mounted from `setup_api_routers()` only when `ADMIN_PASSWORD` is set (`ADMIN_USERNAME`, default `admin`). `BasicAuthMiddleware` (constant-time compare) also rejects cross-site writes by Origin/Referer vs Host/X-Forwarded-Host since sqladmin has no CSRF tokens. Views: chats, repositories (editable, no create), deliveries and digest items (read-only), bot admins |
+| `1164608` | `bot_admins` table | `BotAdmin` model (migration `5b7d9f2a4c63`); `/admins`, `/admin_add <user_id> [name]` (or reply), `/admin_remove` in `handlers/bot/admins.py` behind `BotOwnerFilter` (MASTER_CHAT_ID only). `is_bot_admin()` opens its own session; bot admins pass `ChatAdminFilter` in any group; DB errors fall back to the Telegram admin check |
 | `d41d124` | GitHub App installation flow | `handlers/github/events/installation.py`: `installation` created/new_permissions_accepted register repos (unconnected, url built from `full_name`), suspend/deleted deactivate by stored `gh_repos.installation_id` (migration `4a6c8e1f3b52`) or payload names, unsuspend reactivates; `installation_repositories` added/removed. Connected chats get a "Notifications stopped" notice via `notify()` without session (bypasses digest). README "Connecting Repositories" |
 | `8d2a316` | Structured JSON logging | `LOG_FORMAT=text|json`; `JsonFormatter` (one object per line, `extra=` fields as keys) and `ContextFilter` on every handler in `core/utils/logger.py`; `delivery_id_var` contextvar set in the GitHub route and around `_run_handler()` |
 | `e075701` | Metrics + health | `core/metrics.py`: `gh_webhook_deliveries_total{event,status}` (recorded in `_finish_delivery`, plus `duplicate`), `telegram_request_duration_seconds{method,outcome}` (around `with_retry`; method = first word of `description`). `/misc/metrics` (optional `METRICS_TOKEN` bearer). Multi-worker via `PROMETHEUS_MULTIPROC_DIR` (set in Dockerfile, wiped in `entrypoint.sh`, `child_exit` hook). `/misc/health` checks DB `SELECT 1` + cached `get_me` (60s); 503 only if DB is down, Telegram outage = `degraded` |
@@ -69,12 +70,10 @@ Migrations head after this work: `5b7d9f2a4c63`. Run `just migrate` on every env
 
 ## Remaining roadmap (suggested order)
 
-1. **Admin web dashboard**: `sqladmin` mounted at `/admin` with basic auth from settings
-   (`ADMIN_USERNAME` / `ADMIN_PASSWORD`); views for chats, repos, deliveries, digest items.
-2. **Inline GitHub actions**: needs `GH_TOKEN` setting and an aiohttp client; buttons to re-run a
+1. **Inline GitHub actions**: needs `GH_TOKEN` setting and an aiohttp client; buttons to re-run a
    failed workflow and merge/approve a PR via callback queries (`gh:rerun:<repo>:<run_id>`), admin-only,
    with tests mocking HTTP.
-3. **Pairing code on connect** (ownership check): ping handler generates a code, surfaced in the
+2. **Pairing code on connect** (ownership check): ping handler generates a code, surfaced in the
    webhook delivery response body / master chat; `/connect_repo <url> <code>` required.
 
 ## Not addressed / known limitations
