@@ -24,5 +24,9 @@ HELP_TEXT = (
     "/status — settings, filters and last delivery for every connected repository\n"
     "/deliveries — show the latest webhook deliveries for connected repositories\n"
     "/help — show this message\n\n"
-    "<i>In groups, connecting and disconnecting repositories is limited to chat administrators.</i>"
+    "<b>Bot owner</b>\n"
+    "/admins — list bot admins\n"
+    "/admin_add &lt;user_id&gt; — grant bot-wide admin rights (or reply to the user's message)\n"
+    "/admin_remove &lt;user_id&gt; — revoke them\n\n"
+    "<i>In groups, settings commands are limited to chat administrators and bot admins.</i>"
 )

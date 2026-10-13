@@ -9,7 +9,21 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from aiogram.types import CallbackQuery, Message
 
-from handlers.bot.filters.admin import ADMIN_ONLY_TEXT, ChatAdminFilter, is_chat_admin
+from handlers.bot.filters.admin import (
+    ADMIN_ONLY_TEXT,
+    OWNER_ONLY_TEXT,
+    BotOwnerFilter,
+    ChatAdminFilter,
+    is_bot_admin,
+    is_chat_admin,
+)
+
+
+@pytest.fixture(autouse=True)
+def bot_admin_lookup():
+    """Keep the bot-admin table lookup off the real database."""
+    with patch("handlers.bot.filters.admin.BotAdmin.is_admin", AsyncMock(return_value=False)) as lookup:
+        yield lookup
 
 
 def make_bot(status: str = "member") -> MagicMock:
@@ -46,6 +60,23 @@ class TestIsChatAdmin:
         with patch("handlers.bot.filters.admin.settings") as mock_settings:
             mock_settings.MASTER_CHAT_ID = 42
             assert await is_chat_admin(bot, chat_id=-1, chat_type="group", user_id=42, sender_chat_id=None) is True
+
+    @pytest.mark.async_
+    async def test_runtime_bot_admin_allowed(self, bot_admin_lookup):
+        bot_admin_lookup.return_value = True
+        bot = make_bot("member")
+        with patch("handlers.bot.filters.admin.settings") as mock_settings:
+            mock_settings.MASTER_CHAT_ID = None
+            assert await is_chat_admin(bot, chat_id=-1, chat_type="group", user_id=9, sender_chat_id=None) is True
+        bot.get_chat_member.assert_not_called()
+
+    @pytest.mark.async_
+    async def test_bot_admin_lookup_failure_falls_back_to_chat_status(self, bot_admin_lookup):
+        bot_admin_lookup.side_effect = RuntimeError("db down")
+        with patch("handlers.bot.filters.admin.settings") as mock_settings:
+            mock_settings.MASTER_CHAT_ID = None
+            assert await is_bot_admin(9) is False
+            assert await is_chat_admin(make_bot("administrator"), -1, "group", 9, None) is True
 
     @pytest.mark.async_
     async def test_api_error_denies(self):
@@ -92,3 +123,37 @@ class TestChatAdminFilter:
             mock_settings.MASTER_CHAT_ID = None
             assert await ChatAdminFilter()(query, bot=make_bot("member")) is False
         query.answer.assert_awaited_once_with(ADMIN_ONLY_TEXT, show_alert=True)
+
+
+class TestBotOwnerFilter:
+    @staticmethod
+    def message(user_id: int) -> MagicMock:
+        message = MagicMock(spec=Message)
+        message.from_user = MagicMock()
+        message.from_user.id = user_id
+        message.reply = AsyncMock()
+        return message
+
+    @pytest.mark.async_
+    async def test_owner_passes(self):
+        message = self.message(42)
+        with patch("handlers.bot.filters.admin.settings") as mock_settings:
+            mock_settings.MASTER_CHAT_ID = 42
+            assert await BotOwnerFilter()(message) is True
+        message.reply.assert_not_called()
+
+    @pytest.mark.async_
+    async def test_bot_admin_is_not_owner(self, bot_admin_lookup):
+        bot_admin_lookup.return_value = True
+        message = self.message(9)
+        with patch("handlers.bot.filters.admin.settings") as mock_settings:
+            mock_settings.MASTER_CHAT_ID = 42
+            assert await BotOwnerFilter()(message) is False
+        message.reply.assert_awaited_once_with(OWNER_ONLY_TEXT)
+
+    @pytest.mark.async_
+    async def test_no_owner_configured_denies_everyone(self):
+        message = self.message(42)
+        with patch("handlers.bot.filters.admin.settings") as mock_settings:
+            mock_settings.MASTER_CHAT_ID = None
+            assert await BotOwnerFilter()(message) is False

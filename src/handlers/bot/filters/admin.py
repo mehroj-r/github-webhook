@@ -4,12 +4,32 @@ from aiogram.types import CallbackQuery, Message
 
 from config import settings
 from core import get_logger
+from database import async_session_maker
+from database.models import BotAdmin
 
 logger = get_logger(__name__)
 
 ADMIN_STATUSES = {"creator", "administrator"}
 GROUP_CHAT_TYPES = {"group", "supergroup", "channel"}
 ADMIN_ONLY_TEXT = "🔒 Only chat administrators can manage repository connections here."
+OWNER_ONLY_TEXT = "🔒 Only the bot owner can manage bot admins."
+
+
+def is_bot_owner(user_id: int | None) -> bool:
+    """The owner's private chat id (MASTER_CHAT_ID) equals their user id."""
+    return bool(settings.MASTER_CHAT_ID) and user_id == settings.MASTER_CHAT_ID
+
+
+async def is_bot_admin(user_id: int) -> bool:
+    """Owner or a runtime-managed bot admin. Filters run before middlewares, so open a session here."""
+    if is_bot_owner(user_id):
+        return True
+    try:
+        async with async_session_maker() as session:
+            return await BotAdmin.is_admin(session, user_id)
+    except Exception as e:
+        logger.error("Could not check bot admin status of user %s: %s", user_id, e)
+        return False
 
 
 async def is_chat_admin(
@@ -19,7 +39,7 @@ async def is_chat_admin(
     Decide whether the sender may manage this chat.
 
     Private chats are always allowed. In groups and channels the sender must be an
-    administrator or creator, an anonymous admin posting as the chat itself, or the bot owner.
+    administrator or creator, an anonymous admin posting as the chat itself, the bot owner or a bot admin.
     """
     if chat_type not in GROUP_CHAT_TYPES:
         return True
@@ -31,8 +51,7 @@ async def is_chat_admin(
     if user_id is None:
         return False
 
-    # The bot owner's private chat id equals their user id
-    if settings.MASTER_CHAT_ID and user_id == settings.MASTER_CHAT_ID:
+    if await is_bot_admin(user_id):
         return True
 
     try:
@@ -73,3 +92,13 @@ class ChatAdminFilter(BaseFilter):
                 await message.reply(ADMIN_ONLY_TEXT)
 
         return allowed
+
+
+class BotOwnerFilter(BaseFilter):
+    """Allow a handler only for the bot owner (MASTER_CHAT_ID)."""
+
+    async def __call__(self, message: Message) -> bool:
+        if is_bot_owner(message.from_user.id if message.from_user else None):
+            return True
+        await message.reply(OWNER_ONLY_TEXT)
+        return False
