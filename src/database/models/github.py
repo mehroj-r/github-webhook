@@ -1,3 +1,5 @@
+import hmac
+import secrets
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatchcase
 from typing import TYPE_CHECKING
@@ -11,6 +13,10 @@ from database.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from database.models.telegram import Chat
+
+PAIRING_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I
+PAIRING_CODE_LENGTH = 8
+PAIRING_CODE_TTL = timedelta(hours=72)  # GitHub keeps "Recent Deliveries" for 3 days
 
 
 class GithubRepository(Base, TimestampMixin):
@@ -32,6 +38,9 @@ class GithubRepository(Base, TimestampMixin):
     digest_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # GitHub App installation that grants access to this repository (None for plain repo webhooks)
     installation_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+    # One-time code proving the person connecting a chat can see the repository's webhook deliveries
+    pairing_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    pairing_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     chat: Mapped["Chat | None"] = relationship(back_populates="repositories")
 
@@ -102,3 +111,25 @@ class GithubRepository(Base, TimestampMixin):
     @property
     def digest_enabled(self) -> bool:
         return bool(self.digest_interval_minutes)
+
+    def issue_pairing_code(self) -> str:
+        """Replace any previous code with a fresh one (not persisted until the session flushes)."""
+        code = "".join(secrets.choice(PAIRING_CODE_ALPHABET) for _ in range(PAIRING_CODE_LENGTH))
+        self.pairing_code = code
+        self.pairing_code_expires_at = datetime.now(UTC) + PAIRING_CODE_TTL
+        return code
+
+    def check_pairing_code(self, code: str | None) -> bool:
+        """Constant-time, case-insensitive comparison against an unexpired code."""
+        if not code or not self.pairing_code or self.pairing_code_expires_at is None:
+            return False
+        expires = self.pairing_code_expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=UTC)
+        if expires <= datetime.now(UTC):
+            return False
+        return hmac.compare_digest(code.strip().upper().encode(), self.pairing_code.encode())
+
+    def clear_pairing_code(self) -> None:
+        self.pairing_code = None
+        self.pairing_code_expires_at = None

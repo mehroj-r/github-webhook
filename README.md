@@ -35,8 +35,14 @@ A Telegram bot integrated with FastAPI to receive GitHub webhooks and send notif
 ### Option A: per-repository webhook
 
 In the repository settings add a webhook with payload URL `https://<your-domain>/github/webhook`, content type
-`application/json` and the secret from `GH_WEBHOOK_SECRET`. The initial `ping` registers the repository; then run
-`/connect_repo https://github.com/owner/repo` in the Telegram chat.
+`application/json` and the secret from `GH_WEBHOOK_SECRET`. The initial `ping` registers the repository and answers
+with a `pairing_code` (see the webhook's *Recent Deliveries → Response*); then run
+`/connect_repo https://github.com/owner/repo <pairing_code>` in the Telegram chat.
+
+The code proves the person connecting a chat can see the repository's webhook settings. It is single-use and
+expires after 72 hours; redeliver the ping for a new one. The code is also posted to the bot owner's chat
+(`MASTER_CHAT_ID`), and the owner and bot admins may connect without a code. Set `REQUIRE_PAIRING_CODE=false` to
+turn the check off.
 
 ### Option B: GitHub App (many repositories at once)
 
@@ -48,7 +54,8 @@ In the repository settings add a webhook with payload URL `https://<your-domain>
      Secret scanning alerts
    - **Subscribe to events** matching those permissions
 2. Install the app on an account and pick repositories. The `installation` event registers every selected
-   repository (unconnected); `/connect_repo` links each one to a chat as usual.
+   repository (unconnected) and issues pairing codes, returned in the delivery response (app settings → Advanced)
+   and posted to the bot owner's chat; `/connect_repo <url> <code>` links each one to a chat as usual.
 3. Adding repositories to the installation registers them; removing them, suspending or uninstalling the app
    stops their notifications and tells the connected chat. Re-adding or unsuspending resumes them.
 

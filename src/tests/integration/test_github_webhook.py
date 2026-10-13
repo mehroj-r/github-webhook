@@ -109,3 +109,52 @@ class TestGitHubWebhookRoute:
         async with client:
             response = await client.post(f"/github{settings.GH_WEBHOOK_PATH}", content=b"{}", headers={})
         assert response.status_code == 400
+
+
+class TestPingPairing:
+    @pytest.mark.integration
+    async def test_ping_returns_pairing_code_and_redelivery_refreshes_it(self, client, sqlite_session_maker):
+        from database.models import GithubRepository
+        from tests.payloads import REPOSITORY, USER
+
+        body = json.dumps(
+            {
+                "zen": "Keep it logically awesome.",
+                "hook_id": 1,
+                "hook": {
+                    "type": "Repository",
+                    "id": 1,
+                    "name": "web",
+                    "active": True,
+                    "events": ["*"],
+                    "config": {},
+                    "url": "https://api.github.com/repos/octocat/Hello-World/hooks/1",
+                    "created_at": "2026-10-14T00:00:00Z",
+                    "updated_at": "2026-10-14T00:00:00Z",
+                },
+                "repository": REPOSITORY,
+                "sender": USER,
+            }
+        ).encode()
+
+        with (
+            patch("core.utils.github.settings") as mock_settings,
+            patch("core.decorators.async_session_maker", sqlite_session_maker),
+        ):
+            mock_settings.GH_WEBHOOK_SECRET = SECRET
+            mock_settings.MASTER_CHAT_ID = None
+            async with client:
+                first = await client.post(f"/github{settings.GH_WEBHOOK_PATH}", content=body, headers=_headers(body))
+                again = await client.post(f"/github{settings.GH_WEBHOOK_PATH}", content=body, headers=_headers(body))
+
+        # Background mode is on by default, yet ping is answered synchronously with the code
+        assert first.status_code == 200
+        assert first.json()["status"] == "processed"
+        assert again.json()["status"] == "processed"  # same delivery id, but pings are replayable
+        first_code, second_code = first.json()["pairing_code"], again.json()["pairing_code"]
+        assert first_code != second_code
+        assert first.json()["connect_command"].endswith(first_code)
+
+        async with sqlite_session_maker() as session:
+            repo = await GithubRepository.get(session, title=REPOSITORY["full_name"])
+        assert repo.pairing_code == second_code

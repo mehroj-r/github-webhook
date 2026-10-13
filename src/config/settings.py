@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     GH_TOKEN: str = ""
     GH_API_URL: str = "https://api.github.com"
     GH_MERGE_METHOD: Literal["merge", "squash", "rebase"] = "merge"
+    # /connect_repo needs the code from the repository's ping delivery (bot owner/admins are exempt)
+    REQUIRE_PAIRING_CODE: bool = True
     WEBHOOK_PROCESS_IN_BACKGROUND: bool = True  # respond 200 after validation, handle after the response
 
     # Observability

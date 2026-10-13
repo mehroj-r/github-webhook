@@ -35,7 +35,8 @@ uv run alembic -c src/database/alembic.ini heads
 
 | Commit | Feature | Notes |
 | --- | --- | --- |
-| `_pending_` | Inline GitHub actions | `core/github_api.py` (aiohttp; `GH_TOKEN`, `GH_API_URL`, `GH_MERGE_METHOD`): re-run failed jobs, approve, merge. Buttons from `handlers/github/actions.py` (callback `gh:<action>:<repo uuid hex>:<number>`, carried in `url_buttons` as `callback:<data>` entries, rendered as one bottom row); callbacks in `handlers/bot/actions.py` behind `ChatAdminFilter` + repo-belongs-to-chat check; merge asks for confirmation in a reply. Compact template keeps action buttons; digest uses `first_url()` |
+| `_pending_` | Pairing code on connect | `gh_repos.pairing_code` + `pairing_code_expires_at` (migration `6c9e1a3b5d74`, 72h, single use). Ping for an unconnected repo and `installation`/`installation_repositories` return codes in the response body (`SYNC_EVENTS` in `api/github.py` always run inline; ping is in `REPLAYABLE_EVENTS` so "Redeliver" with the same delivery id gets a fresh code) and post them via `send_to_master()`. `/connect_repo <url> <code>`; owner/bot admins exempt; `REQUIRE_PAIRING_CODE` (default true). `parse_command` now fills trailing optional args positionally |
+| `c4cc493` | Inline GitHub actions | `core/github_api.py` (aiohttp; `GH_TOKEN`, `GH_API_URL`, `GH_MERGE_METHOD`): re-run failed jobs, approve, merge. Buttons from `handlers/github/actions.py` (callback `gh:<action>:<repo uuid hex>:<number>`, carried in `url_buttons` as `callback:<data>` entries, rendered as one bottom row); callbacks in `handlers/bot/actions.py` behind `ChatAdminFilter` + repo-belongs-to-chat check; merge asks for confirmation in a reply. Compact template keeps action buttons; digest uses `first_url()` |
 | `876559b` | Admin web dashboard | `api/admin.py`: sqladmin at `/admin`, mounted from `setup_api_routers()` only when `ADMIN_PASSWORD` is set (`ADMIN_USERNAME`, default `admin`). `BasicAuthMiddleware` (constant-time compare) also rejects cross-site writes by Origin/Referer vs Host/X-Forwarded-Host since sqladmin has no CSRF tokens. Views: chats, repositories (editable, no create), deliveries and digest items (read-only), bot admins |
 | `1164608` | `bot_admins` table | `BotAdmin` model (migration `5b7d9f2a4c63`); `/admins`, `/admin_add <user_id> [name]` (or reply), `/admin_remove` in `handlers/bot/admins.py` behind `BotOwnerFilter` (MASTER_CHAT_ID only). `is_bot_admin()` opens its own session; bot admins pass `ChatAdminFilter` in any group; DB errors fall back to the Telegram admin check |
 | `d41d124` | GitHub App installation flow | `handlers/github/events/installation.py`: `installation` created/new_permissions_accepted register repos (unconnected, url built from `full_name`), suspend/deleted deactivate by stored `gh_repos.installation_id` (migration `4a6c8e1f3b52`) or payload names, unsuspend reactivates; `installation_repositories` added/removed. Connected chats get a "Notifications stopped" notice via `notify()` without session (bypasses digest). README "Connecting Repositories" |
@@ -58,7 +59,7 @@ uv run alembic -c src/database/alembic.ini heads
 | `5960c6a` | Delivery log | `gh_deliveries`, idempotent redeliveries, `/deliveries` |
 | `78e23d0` | Review fixes | signature verification, payload models, lifecycle, ops |
 
-Migrations head after this work: `5b7d9f2a4c63`. Run `just migrate` on every environment.
+Migrations head after this work: `6c9e1a3b5d74`. Run `just migrate` on every environment.
 
 ## Behavior changes already shipped (tell users)
 
@@ -67,12 +68,14 @@ Migrations head after this work: `5b7d9f2a4c63`. Run `just migrate` on every env
 - Telegram handler errors return 200 (logged) so one bad update cannot block the queue.
 - GitHub deliveries are acknowledged with `{"status": "accepted"}` before handling; handler failures no longer
   return 500 (see `/deliveries`). Set `WEBHOOK_PROCESS_IN_BACKGROUND=false` for the old behavior.
+- `/connect_repo` needs the pairing code from the repository's ping delivery (`REQUIRE_PAIRING_CODE=true` by default);
+  unconnected repositories registered before this change need a ping redelivery. Bot owner/admins are exempt.
+- `ping` and `installation*` deliveries are always handled synchronously; pings are never skipped as duplicates.
 - In groups only admins (or the bot owner `MASTER_CHAT_ID`, or a bot admin from `/admin_add`) can run management commands.
 
-## Remaining roadmap (suggested order)
+## Remaining roadmap
 
-1. **Pairing code on connect** (ownership check): ping handler generates a code, surfaced in the
-   webhook delivery response body / master chat; `/connect_repo <url> <code>` required.
+None left: every item from the original roadmap has shipped. See the limitations below for follow-up ideas.
 
 ## Not addressed / known limitations
 
@@ -83,3 +86,8 @@ Migrations head after this work: `5b7d9f2a4c63`. Run `just migrate` on every env
 - Digest scheduler uses a Postgres advisory lock; on SQLite (tests) `flush_due_digests()` is called
   directly.
 - `/status` and `/deliveries` are open to all chat members; only settings commands are admin-gated.
+- Inline GitHub actions run as the single `GH_TOKEN` identity; GitHub's audit log shows that account, the Telegram
+  user is only recorded in the bot's reply and logs.
+- The admin dashboard uses HTTP Basic auth with one shared account; serve it over HTTPS only.
+- Pairing codes from GitHub App installations are only visible to the app owner (app settings → Advanced) and the
+  bot owner's chat, so in practice the owner or a bot admin connects app-installed repositories.

@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 
 from config import settings
 from core import get_logger
+from core.enums import GHEventType
 from core.metrics import record_delivery
 from core.utils.github import send_unhandled_event_to_master, verify_signature
 from core.utils.logger import delivery_id_var
@@ -19,6 +20,11 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/github", tags=["github"])
+
+# Always handled before responding: their handlers return pairing codes for the response body
+SYNC_EVENTS = {GHEventType.PING, GHEventType.INSTALLATION, GHEventType.INSTALLATION_REPOSITORIES}
+# Safe to process again; redelivering a ping (same delivery id) is how users get a fresh pairing code
+REPLAYABLE_EVENTS = {GHEventType.PING}
 
 
 async def _record_delivery(headers: WebhookHeaders) -> tuple[WebhookDelivery | None, bool]:
@@ -67,23 +73,23 @@ async def _run_handler(
     delivery_id: str,
     action: str | None,
     repo_name: str | None,
-) -> bool:
-    """Run the event handler and record the outcome. Returns True on success; never raises."""
+) -> tuple[bool, dict | None]:
+    """Run the event handler and record the outcome. Returns (success, handler result); never raises."""
     token = delivery_id_var.set(delivery_id)
     try:
-        await handler(event=event)
+        result = await handler(event=event)
     except Exception as e:
         logger.error("Error handling %s event (delivery %s): %s", event_type, delivery_id, e, exc_info=True)
         await _finish_delivery(
             delivery, DeliveryStatus.FAILED, event_type=event_type, error=repr(e), action=action, repo_name=repo_name
         )
-        return False
+        return False, None
     else:
         logger.info("Successfully handled %s event (delivery %s)", event_type, delivery_id)
         await _finish_delivery(
             delivery, DeliveryStatus.PROCESSED, event_type=event_type, action=action, repo_name=repo_name
         )
-        return True
+        return True, result if isinstance(result, dict) else None
     finally:
         delivery_id_var.reset(token)
 
@@ -110,7 +116,8 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
 
     # Idempotency: GitHub may redeliver the same delivery id
     delivery, is_new = await _record_delivery(headers)
-    if delivery is not None and not is_new and delivery.is_processed:
+    replayable = headers.event_type in REPLAYABLE_EVENTS
+    if delivery is not None and not is_new and delivery.is_processed and not replayable:
         logger.info("Skipping already processed delivery %s", headers.delivery)
         record_delivery(headers.event_type.value, "duplicate")
         return {"status": "duplicate", "delivery": headers.delivery}
@@ -191,10 +198,11 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     }
 
     # Acknowledge fast so GitHub's 10s timeout never triggers; the delivery log records the outcome
-    if settings.WEBHOOK_PROCESS_IN_BACKGROUND:
+    if settings.WEBHOOK_PROCESS_IN_BACKGROUND and event_type not in SYNC_EVENTS:
         background_tasks.add_task(_run_handler, handler, event, delivery, **run_kwargs)
         return {"status": "accepted", "event_type": event_type.value}
 
-    if await _run_handler(handler, event, delivery, **run_kwargs):
-        return {"status": "processed", "event_type": event_type.value}
+    ok, result = await _run_handler(handler, event, delivery, **run_kwargs)
+    if ok:
+        return {"status": "processed", "event_type": event_type.value, **(result or {})}
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process webhook")

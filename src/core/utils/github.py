@@ -114,3 +114,18 @@ async def send_unhandled_event_to_master(
             exc_info=True,
         )
         return False
+
+
+async def send_to_master(text: str) -> bool:
+    """Post an informational message to the bot owner's chat. Returns False when not configured or on failure."""
+    if not settings.MASTER_CHAT_ID:
+        return False
+    try:
+        from core.bot import bot
+        from core.utils.bot import send_message
+
+        await send_message(bot=bot, chat_id=settings.MASTER_CHAT_ID, text=text)
+        return True
+    except Exception as e:
+        logger.error("Failed to send message to master chat: %s", e)
+        return False

@@ -10,6 +10,7 @@ from core import get_logger
 from core.decorators import GitHubEventRegistry
 from core.enums import GHEventType
 from core.notifications import NotificationTarget, notify
+from core.utils.github import send_to_master
 from database.models import GithubRepository
 from handlers.github.models.events import InstallationEvent, InstallationRepositoriesEvent, PayloadObjects
 
@@ -19,18 +20,18 @@ GITHUB_URL = "https://github.com"
 
 
 @GitHubEventRegistry.register(event=GHEventType.INSTALLATION)
-async def handle_installation(event: InstallationEvent, session: AsyncSession) -> None:
-    """Handle app installs, uninstalls and suspensions."""
+async def handle_installation(event: InstallationEvent, session: AsyncSession) -> dict | None:
+    """Handle app installs, uninstalls and suspensions. Returns pairing codes for newly usable repositories."""
     installation_id = installation_id_of(event.installation)
     names = repo_names(event.repositories)
 
     match event.action:
         case "created" | "new_permissions_accepted":
-            await register_repos(session, installation_id, names)
+            return await issue_pairing_codes(await register_repos(session, installation_id, names))
         case "unsuspend":
             for repo in await _repos_for(session, installation_id, names):
                 repo.is_active = True
-            await register_repos(session, installation_id, names)
+            return await issue_pairing_codes(await register_repos(session, installation_id, names))
         case "suspend":
             repos = await _repos_for(session, installation_id, names)
             await deactivate_repos(repos, reason="The GitHub App installation was suspended; unsuspend it to resume.")
@@ -39,21 +40,34 @@ async def handle_installation(event: InstallationEvent, session: AsyncSession) -
             await deactivate_repos(repos, reason="The GitHub App was uninstalled; reinstall it to resume.")
             for repo in repos:
                 repo.installation_id = None
+    return None
 
 
 @GitHubEventRegistry.register(event=GHEventType.INSTALLATION_REPOSITORIES)
-async def handle_installation_repositories(event: InstallationRepositoriesEvent, session: AsyncSession) -> None:
+async def handle_installation_repositories(event: InstallationRepositoriesEvent, session: AsyncSession) -> dict | None:
     """Handle repositories being added to or removed from an existing installation."""
     installation_id = installation_id_of(event.installation)
 
+    result = None
     if added := repo_names(event.repositories_added):
-        await register_repos(session, installation_id, added)
+        result = await issue_pairing_codes(await register_repos(session, installation_id, added))
 
     if removed := repo_names(event.repositories_removed):
         repos = await _repos_for(session, None, removed)
         await deactivate_repos(repos, reason="The repository was removed from the GitHub App; add it back to resume.")
         for repo in repos:
             repo.installation_id = None
+    return result
+
+
+async def issue_pairing_codes(repos: list[GithubRepository]) -> dict | None:
+    """Pairing codes for repositories not yet connected to a chat, also sent to the bot owner."""
+    codes = {repo.title: repo.issue_pairing_code() for repo in repos if repo.chat_id is None}
+    if not codes:
+        return None
+    lines = [f"• <b>{escape(name)}</b>: <code>{code}</code>" for name, code in codes.items()]
+    await send_to_master("🔑 Pairing codes for newly installed repositories:\n" + "\n".join(lines))
+    return {"pairing_codes": codes}
 
 
 def installation_id_of(installation: dict) -> int:

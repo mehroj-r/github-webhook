@@ -2,7 +2,7 @@ import inspect
 import zlib
 from collections.abc import Callable
 from functools import wraps
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import text
 
@@ -86,10 +86,10 @@ def parse_command(arguments: list, validator: BaseCommandValidator):
                 # Extract command arguments
                 command_args = parts[1:]
 
-                # Parse arguments
-                if len(command_args) == len(arguments):
-                    for i, argument in enumerate(arguments):
-                        parsed_arguments[argument] = command_args[i]
+                # Parse arguments positionally; missing trailing ones stay "" for the validator to judge
+                if len(command_args) <= len(arguments):
+                    for argument, value in zip(arguments, command_args, strict=False):
+                        parsed_arguments[argument] = value
 
                 # Validate arguments if validator is provided
                 is_valid, error_msg = await validator.validate(args_data=parsed_arguments)
@@ -137,7 +137,7 @@ class GitHubEventRegistry:
             model = cls._extract_event_model(handler)
 
             @wraps(handler)
-            async def wrapper(*args, **kwargs) -> None:
+            async def wrapper(*args, **kwargs) -> Any:
                 # Create a new database session for each event handling
                 async with async_session_maker() as session:
                     kwargs["session"] = session

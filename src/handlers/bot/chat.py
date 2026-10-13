@@ -6,20 +6,36 @@ from aiogram.types import Message
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import settings
 from core.decorators import parse_command
 from database.enums import ChatType
 from database.models import Chat, GithubRepository, WebhookDelivery
 
-from .filters import ChatAdminFilter
+from .filters import ChatAdminFilter, is_bot_admin
 from .texts import HELP_TEXT
 from .validators.chat import ConnectRepoCommandValidator, DisconnectRepoCommandValidator
 
 router = Router()
 
+PAIRING_REQUIRED_TEXT = (
+    "🔑 A valid pairing code is required to connect this repository.\n"
+    "On GitHub open <i>Settings → Webhooks → (this bot's webhook) → Recent Deliveries</i>, redeliver the "
+    "<code>ping</code> and copy <code>pairing_code</code> from the response body, then run\n"
+    "<code>/connect_repo {url} CODE</code>\n"
+    "Codes expire after 72 hours."
+)
+
+
+async def _pairing_allowed(message: Message, repo: GithubRepository, code: str) -> bool:
+    """The code from the ping delivery proves access to the repository; bot owner/admins are trusted."""
+    if not settings.REQUIRE_PAIRING_CODE or repo.check_pairing_code(code):
+        return True
+    return message.from_user is not None and await is_bot_admin(message.from_user.id)
+
 
 @router.message(Command("connect_repo"), ChatAdminFilter())
-@parse_command(arguments=["repo_url"], validator=ConnectRepoCommandValidator())
-async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSession) -> None:
+@parse_command(arguments=["repo_url", "code"], validator=ConnectRepoCommandValidator())
+async def handle_connect_repo(message: Message, repo_url: str, code: str, session: AsyncSession) -> None:
     msg = await message.answer("🔗 Connecting chat to repository...")
 
     # Check if this repository ever pinged via webhook
@@ -45,6 +61,10 @@ async def handle_connect_repo(message: Message, repo_url: str, session: AsyncSes
         await chat.update(session=session, managed_by_user_id=message.from_user.id)
 
     if not repo.chat_id:
+        if not await _pairing_allowed(message, repo, code):
+            await msg.edit_text(PAIRING_REQUIRED_TEXT.format(url=escape(repo.url)))
+            return
+        repo.clear_pairing_code()
         await repo.update(session=session, chat_id=chat.id)
         await msg.edit_text("✅ Repository connected successfully.")
         return

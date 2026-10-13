@@ -71,6 +71,14 @@ def run(sqlite_session_maker):
         yield _run
 
 
+@pytest.fixture(autouse=True)
+def no_owner():
+    from config import settings
+
+    with patch.object(settings, "MASTER_CHAT_ID", None):
+        yield
+
+
 @pytest.fixture
 def bot():
     mock = MagicMock()
@@ -129,6 +137,34 @@ class TestInstallation:
         assert repo.is_active is True
         assert repo.installation_id == 777
         bot.send_message.assert_not_awaited()  # repo was never connected to a chat
+
+
+class TestInstallationPairing:
+    @pytest.mark.integration
+    async def test_new_repos_get_codes_and_owner_is_told(self, run, sqlite_session_maker, bot):
+        from config import settings
+
+        with patch.object(settings, "MASTER_CHAT_ID", 42):
+            from core.decorators import GitHubEventRegistry
+
+            with patch("core.decorators.async_session_maker", sqlite_session_maker):
+                handler = GitHubEventRegistry.get_handler(GHEventType.INSTALLATION)
+                result = await handler(event=installation_event("created", REPO))
+
+        repo = await _get(sqlite_session_maker, REPO)
+        assert result == {"pairing_codes": {REPO: repo.pairing_code}}
+        assert bot.send_message.await_args.kwargs["chat_id"] == 42
+        assert repo.pairing_code in bot.send_message.await_args.kwargs["text"]
+
+    @pytest.mark.integration
+    async def test_connected_repos_get_no_code(self, run, sqlite_session_maker):
+        await run(GHEventType.INSTALLATION, installation_event("created", REPO))
+        await _connect(sqlite_session_maker, REPO)
+
+        from core.decorators import GitHubEventRegistry
+
+        handler = GitHubEventRegistry.get_handler(GHEventType.INSTALLATION_REPOSITORIES)
+        assert await handler(event=repositories_event("added", added=(REPO,))) is None
 
 
 class TestInstallationRepositories:
