@@ -90,3 +90,11 @@ def worker_int(worker):
 def worker_abort(worker):
     """Called when a worker received the SIGABRT signal."""
     logger.warning(f"Worker {worker.pid} received SIGABRT")
+
+
+def child_exit(_, worker):
+    """Drop a dead worker's live-gauge files so multiprocess metrics stay accurate."""
+    if os.getenv("PROMETHEUS_MULTIPROC_DIR"):
+        from prometheus_client import multiprocess
+
+        multiprocess.mark_process_dead(worker.pid)

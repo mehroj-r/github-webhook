@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     GH_WEBHOOK_PATH: str = "/webhook"  # /github/webhook
     WEBHOOK_PROCESS_IN_BACKGROUND: bool = True  # respond 200 after validation, handle after the response
 
+    # Observability
+    METRICS_TOKEN: str = ""  # when set, /misc/metrics requires "Authorization: Bearer <token>"
+
     # FastAPI Server Settings
     HOST: str = "0.0.0.0"
     PORT: int = 8000

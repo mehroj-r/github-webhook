@@ -5,6 +5,7 @@ from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from core import get_logger
+from core.metrics import observe_telegram_call
 
 logger = get_logger(__name__)
 
@@ -24,7 +25,13 @@ async def with_retry[T](operation: Callable[[], Awaitable[T]], description: str 
 
     TelegramRetryAfter: sleep for the requested time (bounded) and retry.
     TelegramNetworkError: exponential-ish backoff. Other API errors are raised immediately.
+    The first word of ``description`` is the method label of the latency metric.
     """
+    with observe_telegram_call(description.split(" ", 1)[0]):
+        return await _retry_loop(operation, description)
+
+
+async def _retry_loop[T](operation: Callable[[], Awaitable[T]], description: str) -> T:
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
             return await operation()
