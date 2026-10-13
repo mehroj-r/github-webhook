@@ -7,6 +7,7 @@ from core.decorators import GitHubEventRegistry
 from core.enums import GHEventType
 from core.notifications import notify_or_edit, resolve_target
 from core.utils.duration import format_duration
+from handlers.github.actions import workflow_run_buttons
 from handlers.github.formatting import repo_link, user_link
 from handlers.github.models.events import WorkflowRunEvent
 
@@ -37,9 +38,8 @@ async def handle(event: WorkflowRunEvent, session: AsyncSession) -> None:
     if not target:
         return
 
-    await notify_or_edit(
-        session, target, key=message_key(event), text=build_message(event), url_buttons=build_buttons(event)
-    )
+    buttons = build_buttons(event) + workflow_run_buttons(target.repo, event.action, event.workflow_run)
+    await notify_or_edit(session, target, key=message_key(event), text=build_message(event), url_buttons=buttons)
 
 
 def message_key(event: WorkflowRunEvent) -> str:

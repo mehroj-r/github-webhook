@@ -24,6 +24,8 @@ HELP_TEXT = (
     "/status — settings, filters and last delivery for every connected repository\n"
     "/deliveries — show the latest webhook deliveries for connected repositories\n"
     "/help — show this message\n\n"
+    "<i>With a GitHub token configured, failed workflow runs get a re-run button and open pull requests get "
+    "approve/merge buttons (chat administrators only).</i>\n\n"
     "<b>Bot owner</b>\n"
     "/admins — list bot admins\n"
     "/admin_add &lt;user_id&gt; — grant bot-wide admin rights (or reply to the user's message)\n"

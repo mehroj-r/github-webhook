@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     GH_WEBHOOK_SECRET: str = ""
     GH_WEBHOOK_URL: str = ""
     GH_WEBHOOK_PATH: str = "/webhook"  # /github/webhook
+    # Inline actions (re-run workflow, approve/merge PR) are offered only when GH_TOKEN is set
+    GH_TOKEN: str = ""
+    GH_API_URL: str = "https://api.github.com"
+    GH_MERGE_METHOD: Literal["merge", "squash", "rebase"] = "merge"
     WEBHOOK_PROCESS_IN_BACKGROUND: bool = True  # respond 200 after validation, handle after the response
 
     # Observability

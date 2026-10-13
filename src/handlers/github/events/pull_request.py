@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.decorators import GitHubEventRegistry
 from core.enums import GHEventType
 from core.notifications import notify, resolve_target
+from handlers.github.actions import pull_request_buttons
 from handlers.github.formatting import actor, labels, quote, repo_link, user_link
 from handlers.github.models.events import PullRequestEvent
 
@@ -36,7 +37,7 @@ async def handle(event: PullRequestEvent, session: AsyncSession) -> None:
     await notify(
         target,
         text=build_message(event),
-        url_buttons=build_buttons(event),
+        url_buttons=build_buttons(event) + pull_request_buttons(target.repo, event.action, pr),
         session=session,
         event_type=GHEventType.PULL_REQUEST.value,
     )

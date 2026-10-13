@@ -13,6 +13,10 @@ logger = get_logger(__name__)
 MAX_MESSAGE_LENGTH = 4096
 TRUNCATION_SUFFIX = "\n\n<i>... (truncated)</i>"
 
+# A button whose "url" starts with this prefix is sent as a callback button with the rest as callback data
+CALLBACK_PREFIX = "callback:"
+MAX_CALLBACK_DATA = 64  # bytes, Telegram limit
+
 # Retry policy for Telegram API calls
 MAX_ATTEMPTS = 4
 MAX_RETRY_AFTER = 60  # seconds; longer flood waits are given up on
@@ -86,11 +90,40 @@ async def send_message(
     )
 
 
+def callback_button(text: str, data: str) -> tuple[str, str] | None:
+    """A (text, target) button entry that triggers a callback query; None if `data` is too long."""
+    if len(data.encode()) > MAX_CALLBACK_DATA:
+        return None
+    return text, f"{CALLBACK_PREFIX}{data}"
+
+
+def is_callback_button(button: tuple[str, str]) -> bool:
+    return button[1].startswith(CALLBACK_PREFIX)
+
+
+def first_url(buttons: list[tuple[str, str]] | None) -> str | None:
+    return next((target for _, target in buttons or [] if not target.startswith(CALLBACK_PREFIX)), None)
+
+
 def build_url_keyboard(url_buttons: list[tuple[str, str]] | None) -> InlineKeyboardMarkup | None:
-    """Inline keyboard with one URL button per row, or None when there are no buttons."""
+    """
+    Inline keyboard with one URL button per row, or None when there are no buttons.
+    Callback buttons (see `callback_button`) share a single row at the bottom.
+    """
     if not url_buttons:
         return None
-    keyboard = [[InlineKeyboardButton(text=button_text, url=url)] for button_text, url in url_buttons]
+    keyboard = [
+        [InlineKeyboardButton(text=text, url=target)]
+        for text, target in url_buttons
+        if not target.startswith(CALLBACK_PREFIX)
+    ]
+    actions = [
+        InlineKeyboardButton(text=text, callback_data=target.removeprefix(CALLBACK_PREFIX))
+        for text, target in url_buttons
+        if target.startswith(CALLBACK_PREFIX)
+    ]
+    if actions:
+        keyboard.append(actions)
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 

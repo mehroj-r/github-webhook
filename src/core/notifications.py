@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core import get_logger
-from core.utils.bot import edit_message, send_message
+from core.utils.bot import edit_message, first_url, is_callback_button, send_message
 from database.models import Chat, GithubRepository, SentMessage
 
 logger = get_logger(__name__)
@@ -30,8 +30,11 @@ def compact_text(text: str) -> str:
 
 def render_for(target: "NotificationTarget", text: str, url_buttons: list[tuple[str, str]] | None):
     """Apply the chat's template to a message and its buttons."""
+    if target.chat.is_compact and url_buttons:
+        links = [b for b in url_buttons if not is_callback_button(b)][:1]
+        return compact_text(text), links + [b for b in url_buttons if is_callback_button(b)]
     if target.chat.is_compact:
-        return compact_text(text), (url_buttons[:1] if url_buttons else url_buttons)
+        return compact_text(text), url_buttons
     return text, url_buttons
 
 
@@ -104,7 +107,7 @@ async def notify(
     from core.digest import enqueue
 
     if target.repo.digest_enabled and session is not None:
-        url = url_buttons[0][1] if url_buttons else None
+        url = first_url(url_buttons)
         await enqueue(session, target.repo.title, target.chat_id, event_type, text, url)
         return None
 

@@ -54,6 +54,17 @@ In the repository settings add a webhook with payload URL `https://<your-domain>
 
 No private key or API access is needed: everything is driven by webhook payloads.
 
+## Inline GitHub Actions (optional)
+
+Set `GH_TOKEN` to a token that can write Actions and Pull requests on your repositories (a fine-grained PAT, or a
+bot account's token). Notifications then get buttons, usable by chat administrators only:
+
+- failed or timed-out workflow runs: **Re-run failed jobs**
+- opened / reopened / ready-for-review pull requests: **Approve** and **Merge** (asks for confirmation; method from
+  `GH_MERGE_METHOD`: `merge`, `squash` or `rebase`)
+
+Actions are performed as the token's owner. `GH_API_URL` can point at a GitHub Enterprise Server API.
+
 ## Running the Bot
 
 ### Development (Polling Mode)
