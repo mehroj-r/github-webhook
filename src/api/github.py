@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Request, status
+from typing import TYPE_CHECKING
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 
 from config import settings
 from core import get_logger
@@ -8,6 +10,9 @@ from database.enums import DeliveryStatus
 from database.models import WebhookDelivery
 from handlers.github.models.events import BaseEvent
 from handlers.github.models.headers import WebhookHeaders
+
+if TYPE_CHECKING:
+    from handlers.github.events.base import EventHandler
 
 logger = get_logger(__name__)
 
@@ -49,8 +54,31 @@ async def _finish_delivery(
         logger.error("Failed to update delivery %s: %s", row.delivery_id, e, exc_info=True)
 
 
+async def _run_handler(
+    handler: "EventHandler",
+    event: BaseEvent,
+    delivery: WebhookDelivery | None,
+    *,
+    event_type: str,
+    delivery_id: str,
+    action: str | None,
+    repo_name: str | None,
+) -> bool:
+    """Run the event handler and record the outcome. Returns True on success; never raises."""
+    try:
+        await handler(event=event)
+    except Exception as e:
+        logger.error("Error handling %s event (delivery %s): %s", event_type, delivery_id, e, exc_info=True)
+        await _finish_delivery(delivery, DeliveryStatus.FAILED, error=repr(e), action=action, repo_name=repo_name)
+        return False
+
+    logger.info("Successfully handled %s event (delivery %s)", event_type, delivery_id)
+    await _finish_delivery(delivery, DeliveryStatus.PROCESSED, action=action, repo_name=repo_name)
+    return True
+
+
 @router.post(path=settings.GH_WEBHOOK_PATH)
-async def github_webhook(request: Request):
+async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     """Handle incoming webhook requests from GitHub"""
 
     # Validate webhook headers
@@ -131,15 +159,18 @@ async def github_webhook(request: Request):
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid {event_type.value} event payload"
         ) from e
 
-    # Execute handler
-    try:
-        await handler(event=event)
-        logger.info("Successfully handled %s event (delivery %s)", event_type.value, headers.delivery)
-        await _finish_delivery(delivery, DeliveryStatus.PROCESSED, action=action, repo_name=repo_name)
+    run_kwargs = {
+        "event_type": event_type.value,
+        "delivery_id": headers.delivery,
+        "action": action,
+        "repo_name": repo_name,
+    }
+
+    # Acknowledge fast so GitHub's 10s timeout never triggers; the delivery log records the outcome
+    if settings.WEBHOOK_PROCESS_IN_BACKGROUND:
+        background_tasks.add_task(_run_handler, handler, event, delivery, **run_kwargs)
+        return {"status": "accepted", "event_type": event_type.value}
+
+    if await _run_handler(handler, event, delivery, **run_kwargs):
         return {"status": "processed", "event_type": event_type.value}
-    except Exception as e:
-        logger.error("Error handling %s event: %s", event_type.value, e, exc_info=True)
-        await _finish_delivery(delivery, DeliveryStatus.FAILED, error=repr(e), action=action, repo_name=repo_name)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process webhook"
-        ) from e
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process webhook")

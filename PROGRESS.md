@@ -35,7 +35,8 @@ uv run alembic -c src/database/alembic.ini heads
 
 | Commit | Feature | Notes |
 | --- | --- | --- |
-| `ci:` (fill hash next commit) | CI workflow | `.github/workflows/ci.yml` (ruff, ty, pytest, single Alembic head) on push/PR and as `workflow_call`; `deploy.yml` runs it as job `ci` and `build-and-deploy` `needs: ci`. Tests need placeholder `BOT_TOKEN`/`DATABASE_URL` (sqlite+aiosqlite) |
+| `_pending_` | Background webhook processing | `WEBHOOK_PROCESS_IN_BACKGROUND` (default true): after validation the route returns `{"status": "accepted"}` and runs `_run_handler()` via FastAPI `BackgroundTasks`; outcome only in the delivery log. Validation errors stay synchronous (400/401). Sync mode keeps `processed`/500 |
+| `786fe83` | CI workflow | `.github/workflows/ci.yml` (ruff, ty, pytest, single Alembic head) on push/PR and as `workflow_call`; `deploy.yml` runs it as job `ci` and `build-and-deploy` `needs: ci`. Tests need placeholder `BOT_TOKEN`/`DATABASE_URL` (sqlite+aiosqlite) |
 | `45c54f3` | Digest mode | `/digest [repo] 1h|off|now`, `tg_digest_items`, scheduler in `core/digest.py` started from `asgi.py` and `main.py`, flush under `distributed_lock("digest_flush")` |
 | `29d350b` | Message templates | `/template compact|verbose`, `tg_chats.template`, `compact_text()` in `core/notifications.py` |
 | `049134b` | Telegram retries | `with_retry()` in `core/utils/bot.py`: RetryAfter (<=60s) and network errors, 4 attempts |
@@ -58,30 +59,29 @@ Migrations head after this work: `2d7e5f8a9b41`. Run `just migrate` on every env
 - Events outside the curated catalog are off by default; enable via the "Other events" toggle in `/events`.
 - Noisy PR/issue actions (synchronize, labeled, edited, ...) are skipped.
 - Telegram handler errors return 200 (logged) so one bad update cannot block the queue.
+- GitHub deliveries are acknowledged with `{"status": "accepted"}` before handling; handler failures no longer
+  return 500 (see `/deliveries`). Set `WEBHOOK_PROCESS_IN_BACKGROUND=false` for the old behavior.
 - In groups only admins (or the bot owner `MASTER_CHAT_ID`) can run management commands.
 
 ## Remaining roadmap (suggested order)
 
-1. **Background processing of webhooks**: respond 200 after validation, run the handler in a
-   background task; the delivery log already records the outcome. Consider a
-   `WEBHOOK_PROCESS_IN_BACKGROUND` setting (default true). Keep validation errors synchronous (400).
-2. **Metrics + health**: `prometheus-client`, counters for deliveries by event/status, Telegram call
+1. **Metrics + health**: `prometheus-client`, counters for deliveries by event/status, Telegram call
    latency histogram at `/misc/metrics`; extend `/misc/health` to check DB (`SELECT 1`) and Telegram
    (`get_me`, cached).
-3. **Structured JSON logging**: `LOG_FORMAT=json|text` in settings, JSON formatter in
+2. **Structured JSON logging**: `LOG_FORMAT=json|text` in settings, JSON formatter in
    `core/utils/logger.py`, delivery id as a correlation field via a `contextvar` + logging filter.
-4. **GitHub App installation flow**: handle `installation` (created, with `repositories`) and
+3. **GitHub App installation flow**: handle `installation` (created, with `repositories`) and
    `installation_repositories` (added/removed) to register/deactivate `GithubRepository` rows; no API
    calls required. Document app setup in README.
-5. **`bot_admins` table**: runtime-managed admins instead of the single `MASTER_CHAT_ID`;
+4. **`bot_admins` table**: runtime-managed admins instead of the single `MASTER_CHAT_ID`;
    `/admins`, `/admin_add <user_id>`, `/admin_remove <user_id>` (owner only). The admin filter should
    open its own session via `async_session_maker` (inner middleware data is not available to filters).
-6. **Admin web dashboard**: `sqladmin` mounted at `/admin` with basic auth from settings
+5. **Admin web dashboard**: `sqladmin` mounted at `/admin` with basic auth from settings
    (`ADMIN_USERNAME` / `ADMIN_PASSWORD`); views for chats, repos, deliveries, digest items.
-7. **Inline GitHub actions**: needs `GH_TOKEN` setting and an aiohttp client; buttons to re-run a
+6. **Inline GitHub actions**: needs `GH_TOKEN` setting and an aiohttp client; buttons to re-run a
    failed workflow and merge/approve a PR via callback queries (`gh:rerun:<repo>:<run_id>`), admin-only,
    with tests mocking HTTP.
-8. **Pairing code on connect** (ownership check): ping handler generates a code, surfaced in the
+7. **Pairing code on connect** (ownership check): ping handler generates a code, surfaced in the
    webhook delivery response body / master chat; `/connect_repo <url> <code>` required.
 
 ## Not addressed / known limitations

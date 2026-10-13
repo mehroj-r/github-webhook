@@ -81,6 +81,26 @@ class TestGitHubWebhookRoute:
                 )
 
         assert response.status_code == 200
+        assert response.json() == {"status": "accepted", "event_type": "public"}
+        handler.assert_awaited_once()
+
+    @pytest.mark.async_
+    async def test_synchronous_mode_reports_processed(self, client):
+        body = json.dumps({"zen": "x", "hook_id": 1, "hook": {}}).encode()
+        handler = AsyncMock()
+
+        with (
+            patch("core.utils.github.settings") as mock_settings,
+            patch.object(settings, "WEBHOOK_PROCESS_IN_BACKGROUND", False),
+            patch("core.decorators.GitHubEventRegistry.get_handler", return_value=handler),
+        ):
+            mock_settings.GH_WEBHOOK_SECRET = SECRET
+            async with client:
+                response = await client.post(
+                    f"/github{settings.GH_WEBHOOK_PATH}", content=body, headers=_headers(body, event="public")
+                )
+
+        assert response.status_code == 200
         assert response.json() == {"status": "processed", "event_type": "public"}
         handler.assert_awaited_once()
 

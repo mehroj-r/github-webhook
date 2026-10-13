@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     GH_WEBHOOK_SECRET: str = ""
     GH_WEBHOOK_URL: str = ""
     GH_WEBHOOK_PATH: str = "/webhook"  # /github/webhook
+    WEBHOOK_PROCESS_IN_BACKGROUND: bool = True  # respond 200 after validation, handle after the response
 
     # FastAPI Server Settings
     HOST: str = "0.0.0.0"

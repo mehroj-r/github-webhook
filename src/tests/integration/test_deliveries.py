@@ -87,7 +87,7 @@ class TestWebhookRouteDeliveryLog:
                 first = await client.post(f"/github{settings.GH_WEBHOOK_PATH}", content=body, headers=_headers(body, "dup-1"))
                 second = await client.post(f"/github{settings.GH_WEBHOOK_PATH}", content=body, headers=_headers(body, "dup-1"))
 
-        assert first.json()["status"] == "processed"
+        assert first.json()["status"] == "accepted"
         assert second.json()["status"] == "duplicate"
         handler.assert_awaited_once()
 
@@ -97,7 +97,7 @@ class TestWebhookRouteDeliveryLog:
         assert row.repo_name == "octocat/Hello-World"
 
     @pytest.mark.integration
-    async def test_handler_failure_is_recorded(self, client, sqlite_session_maker):
+    async def test_background_handler_failure_is_recorded(self, client, sqlite_session_maker):
         body = json.dumps({"repository": REPOSITORY}).encode()
         handler = AsyncMock(side_effect=RuntimeError("boom"))
 
@@ -110,8 +110,31 @@ class TestWebhookRouteDeliveryLog:
             async with client:
                 response = await client.post(f"/github{settings.GH_WEBHOOK_PATH}", content=body, headers=_headers(body, "fail-1"))
 
-        assert response.status_code == 500
+        # Acknowledged before the handler ran; the failure only shows up in the delivery log
+        assert response.status_code == 200
+        assert response.json()["status"] == "accepted"
         async with sqlite_session_maker() as session:
             row = await WebhookDelivery.get(session, delivery_id="fail-1")
+        assert row.status == "failed"
+        assert "boom" in row.error
+
+    @pytest.mark.integration
+    async def test_synchronous_handler_failure_returns_500(self, client, sqlite_session_maker):
+        body = json.dumps({"repository": REPOSITORY}).encode()
+        handler = AsyncMock(side_effect=RuntimeError("boom"))
+
+        with (
+            patch("core.utils.github.settings") as mock_settings,
+            patch.object(settings, "WEBHOOK_PROCESS_IN_BACKGROUND", False),
+            patch("api.github.async_session_maker", sqlite_session_maker),
+            patch("core.decorators.GitHubEventRegistry.get_handler", return_value=handler),
+        ):
+            mock_settings.GH_WEBHOOK_SECRET = SECRET
+            async with client:
+                response = await client.post(f"/github{settings.GH_WEBHOOK_PATH}", content=body, headers=_headers(body, "fail-2"))
+
+        assert response.status_code == 500
+        async with sqlite_session_maker() as session:
+            row = await WebhookDelivery.get(session, delivery_id="fail-2")
         assert row.status == "failed"
         assert "boom" in row.error
