@@ -35,6 +35,7 @@ uv run alembic -c src/database/alembic.ini heads
 
 | Commit | Feature | Notes |
 | --- | --- | --- |
+| `ci:` (fill hash next commit) | CI workflow | `.github/workflows/ci.yml` (ruff, ty, pytest, single Alembic head) on push/PR and as `workflow_call`; `deploy.yml` runs it as job `ci` and `build-and-deploy` `needs: ci`. Tests need placeholder `BOT_TOKEN`/`DATABASE_URL` (sqlite+aiosqlite) |
 | `45c54f3` | Digest mode | `/digest [repo] 1h|off|now`, `tg_digest_items`, scheduler in `core/digest.py` started from `asgi.py` and `main.py`, flush under `distributed_lock("digest_flush")` |
 | `29d350b` | Message templates | `/template compact|verbose`, `tg_chats.template`, `compact_text()` in `core/notifications.py` |
 | `049134b` | Telegram retries | `with_retry()` in `core/utils/bot.py`: RetryAfter (<=60s) and network errors, 4 attempts |
@@ -61,27 +62,26 @@ Migrations head after this work: `2d7e5f8a9b41`. Run `just migrate` on every env
 
 ## Remaining roadmap (suggested order)
 
-1. **CI workflow** `.github/workflows/ci.yml`: ruff, ty, pytest on push/PR; make `deploy.yml` depend on it.
-2. **Background processing of webhooks**: respond 200 after validation, run the handler in a
+1. **Background processing of webhooks**: respond 200 after validation, run the handler in a
    background task; the delivery log already records the outcome. Consider a
    `WEBHOOK_PROCESS_IN_BACKGROUND` setting (default true). Keep validation errors synchronous (400).
-3. **Metrics + health**: `prometheus-client`, counters for deliveries by event/status, Telegram call
+2. **Metrics + health**: `prometheus-client`, counters for deliveries by event/status, Telegram call
    latency histogram at `/misc/metrics`; extend `/misc/health` to check DB (`SELECT 1`) and Telegram
    (`get_me`, cached).
-4. **Structured JSON logging**: `LOG_FORMAT=json|text` in settings, JSON formatter in
+3. **Structured JSON logging**: `LOG_FORMAT=json|text` in settings, JSON formatter in
    `core/utils/logger.py`, delivery id as a correlation field via a `contextvar` + logging filter.
-5. **GitHub App installation flow**: handle `installation` (created, with `repositories`) and
+4. **GitHub App installation flow**: handle `installation` (created, with `repositories`) and
    `installation_repositories` (added/removed) to register/deactivate `GithubRepository` rows; no API
    calls required. Document app setup in README.
-6. **`bot_admins` table**: runtime-managed admins instead of the single `MASTER_CHAT_ID`;
+5. **`bot_admins` table**: runtime-managed admins instead of the single `MASTER_CHAT_ID`;
    `/admins`, `/admin_add <user_id>`, `/admin_remove <user_id>` (owner only). The admin filter should
    open its own session via `async_session_maker` (inner middleware data is not available to filters).
-7. **Admin web dashboard**: `sqladmin` mounted at `/admin` with basic auth from settings
+6. **Admin web dashboard**: `sqladmin` mounted at `/admin` with basic auth from settings
    (`ADMIN_USERNAME` / `ADMIN_PASSWORD`); views for chats, repos, deliveries, digest items.
-8. **Inline GitHub actions**: needs `GH_TOKEN` setting and an aiohttp client; buttons to re-run a
+7. **Inline GitHub actions**: needs `GH_TOKEN` setting and an aiohttp client; buttons to re-run a
    failed workflow and merge/approve a PR via callback queries (`gh:rerun:<repo>:<run_id>`), admin-only,
    with tests mocking HTTP.
-9. **Pairing code on connect** (ownership check): ping handler generates a code, surfaced in the
+8. **Pairing code on connect** (ownership check): ping handler generates a code, surfaced in the
    webhook delivery response body / master chat; `/connect_repo <url> <code>` required.
 
 ## Not addressed / known limitations
