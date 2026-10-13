@@ -6,6 +6,7 @@ from config import settings
 from core import get_logger
 from core.metrics import record_delivery
 from core.utils.github import send_unhandled_event_to_master, verify_signature
+from core.utils.logger import delivery_id_var
 from database import async_session_maker
 from database.enums import DeliveryStatus
 from database.models import WebhookDelivery
@@ -68,6 +69,7 @@ async def _run_handler(
     repo_name: str | None,
 ) -> bool:
     """Run the event handler and record the outcome. Returns True on success; never raises."""
+    token = delivery_id_var.set(delivery_id)
     try:
         await handler(event=event)
     except Exception as e:
@@ -76,12 +78,14 @@ async def _run_handler(
             delivery, DeliveryStatus.FAILED, event_type=event_type, error=repr(e), action=action, repo_name=repo_name
         )
         return False
-
-    logger.info("Successfully handled %s event (delivery %s)", event_type, delivery_id)
-    await _finish_delivery(
-        delivery, DeliveryStatus.PROCESSED, event_type=event_type, action=action, repo_name=repo_name
-    )
-    return True
+    else:
+        logger.info("Successfully handled %s event (delivery %s)", event_type, delivery_id)
+        await _finish_delivery(
+            delivery, DeliveryStatus.PROCESSED, event_type=event_type, action=action, repo_name=repo_name
+        )
+        return True
+    finally:
+        delivery_id_var.reset(token)
 
 
 @router.post(path=settings.GH_WEBHOOK_PATH)
@@ -94,6 +98,8 @@ async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     except Exception as e:
         logger.error("Invalid webhook headers: %s", e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook headers") from e
+
+    delivery_id_var.set(headers.delivery)
 
     # Verify the payload signature before trusting anything in the body.
     # Starlette caches the body, so later request.json()/request.form() calls reuse it.

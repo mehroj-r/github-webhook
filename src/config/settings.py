@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Github Webhook Bot"
     DEBUG: bool = False
     LOG_DIR: str = "logs"
+    LOG_FORMAT: Literal["text", "json"] = "text"
 
     # Telegram Bot Settings
     BOT_TOKEN: str = ""

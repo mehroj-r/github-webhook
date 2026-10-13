@@ -35,7 +35,8 @@ uv run alembic -c src/database/alembic.ini heads
 
 | Commit | Feature | Notes |
 | --- | --- | --- |
-| `_pending_` | Metrics + health | `core/metrics.py`: `gh_webhook_deliveries_total{event,status}` (recorded in `_finish_delivery`, plus `duplicate`), `telegram_request_duration_seconds{method,outcome}` (around `with_retry`; method = first word of `description`). `/misc/metrics` (optional `METRICS_TOKEN` bearer). Multi-worker via `PROMETHEUS_MULTIPROC_DIR` (set in Dockerfile, wiped in `entrypoint.sh`, `child_exit` hook). `/misc/health` checks DB `SELECT 1` + cached `get_me` (60s); 503 only if DB is down, Telegram outage = `degraded` |
+| `_pending_` | Structured JSON logging | `LOG_FORMAT=text|json`; `JsonFormatter` (one object per line, `extra=` fields as keys) and `ContextFilter` on every handler in `core/utils/logger.py`; `delivery_id_var` contextvar set in the GitHub route and around `_run_handler()` |
+| `e075701` | Metrics + health | `core/metrics.py`: `gh_webhook_deliveries_total{event,status}` (recorded in `_finish_delivery`, plus `duplicate`), `telegram_request_duration_seconds{method,outcome}` (around `with_retry`; method = first word of `description`). `/misc/metrics` (optional `METRICS_TOKEN` bearer). Multi-worker via `PROMETHEUS_MULTIPROC_DIR` (set in Dockerfile, wiped in `entrypoint.sh`, `child_exit` hook). `/misc/health` checks DB `SELECT 1` + cached `get_me` (60s); 503 only if DB is down, Telegram outage = `degraded` |
 | `7044a71` | Background webhook processing | `WEBHOOK_PROCESS_IN_BACKGROUND` (default true): after validation the route returns `{"status": "accepted"}` and runs `_run_handler()` via FastAPI `BackgroundTasks`; outcome only in the delivery log. Validation errors stay synchronous (400/401). Sync mode keeps `processed`/500 |
 | `786fe83` | CI workflow | `.github/workflows/ci.yml` (ruff, ty, pytest, single Alembic head) on push/PR and as `workflow_call`; `deploy.yml` runs it as job `ci` and `build-and-deploy` `needs: ci`. Tests need placeholder `BOT_TOKEN`/`DATABASE_URL` (sqlite+aiosqlite) |
 | `45c54f3` | Digest mode | `/digest [repo] 1h|off|now`, `tg_digest_items`, scheduler in `core/digest.py` started from `asgi.py` and `main.py`, flush under `distributed_lock("digest_flush")` |
@@ -66,20 +67,18 @@ Migrations head after this work: `2d7e5f8a9b41`. Run `just migrate` on every env
 
 ## Remaining roadmap (suggested order)
 
-1. **Structured JSON logging**: `LOG_FORMAT=json|text` in settings, JSON formatter in
-   `core/utils/logger.py`, delivery id as a correlation field via a `contextvar` + logging filter.
-2. **GitHub App installation flow**: handle `installation` (created, with `repositories`) and
+1. **GitHub App installation flow**: handle `installation` (created, with `repositories`) and
    `installation_repositories` (added/removed) to register/deactivate `GithubRepository` rows; no API
    calls required. Document app setup in README.
-3. **`bot_admins` table**: runtime-managed admins instead of the single `MASTER_CHAT_ID`;
+2. **`bot_admins` table**: runtime-managed admins instead of the single `MASTER_CHAT_ID`;
    `/admins`, `/admin_add <user_id>`, `/admin_remove <user_id>` (owner only). The admin filter should
    open its own session via `async_session_maker` (inner middleware data is not available to filters).
-4. **Admin web dashboard**: `sqladmin` mounted at `/admin` with basic auth from settings
+3. **Admin web dashboard**: `sqladmin` mounted at `/admin` with basic auth from settings
    (`ADMIN_USERNAME` / `ADMIN_PASSWORD`); views for chats, repos, deliveries, digest items.
-5. **Inline GitHub actions**: needs `GH_TOKEN` setting and an aiohttp client; buttons to re-run a
+4. **Inline GitHub actions**: needs `GH_TOKEN` setting and an aiohttp client; buttons to re-run a
    failed workflow and merge/approve a PR via callback queries (`gh:rerun:<repo>:<run_id>`), admin-only,
    with tests mocking HTTP.
-6. **Pairing code on connect** (ownership check): ping handler generates a code, surfaced in the
+5. **Pairing code on connect** (ownership check): ping handler generates a code, surfaced in the
    webhook delivery response body / master chat; `/connect_repo <url> <code>` required.
 
 ## Not addressed / known limitations

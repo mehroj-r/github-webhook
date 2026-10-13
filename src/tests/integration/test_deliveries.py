@@ -138,3 +138,22 @@ class TestWebhookRouteDeliveryLog:
             row = await WebhookDelivery.get(session, delivery_id="fail-2")
         assert row.status == "failed"
         assert "boom" in row.error
+
+    @pytest.mark.integration
+    async def test_handler_logs_carry_delivery_id(self, client, sqlite_session_maker):
+        from core.utils.logger import delivery_id_var
+
+        body = json.dumps({"repository": REPOSITORY}).encode()
+        seen: list[str | None] = []
+        handler = AsyncMock(side_effect=lambda **_: seen.append(delivery_id_var.get()))
+
+        with (
+            patch("core.utils.github.settings") as mock_settings,
+            patch("api.github.async_session_maker", sqlite_session_maker),
+            patch("core.decorators.GitHubEventRegistry.get_handler", return_value=handler),
+        ):
+            mock_settings.GH_WEBHOOK_SECRET = SECRET
+            async with client:
+                await client.post(f"/github{settings.GH_WEBHOOK_PATH}", content=body, headers=_headers(body, "ctx-1"))
+
+        assert seen == ["ctx-1"]

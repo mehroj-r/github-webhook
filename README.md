@@ -84,6 +84,11 @@ gunicorn asgi:app \
 - Recommended: `(CPU cores × 2) + 1`
 - Each worker handles requests concurrently via async/await
 
+## Logging
+
+Set `LOG_FORMAT=json` to emit one JSON object per line (console and log files). Records logged while a GitHub
+delivery is being handled carry its `delivery_id`; `extra={...}` fields become top-level keys.
+
 ## FastAPI Endpoints
 
 The FastAPI server includes:
