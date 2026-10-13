@@ -30,6 +30,30 @@ A Telegram bot integrated with FastAPI to receive GitHub webhooks and send notif
    - `HOST`: Server host (default: `0.0.0.0`)
    - `PORT`: Server port (default: `8000`)
 
+## Connecting Repositories
+
+### Option A: per-repository webhook
+
+In the repository settings add a webhook with payload URL `https://<your-domain>/github/webhook`, content type
+`application/json` and the secret from `GH_WEBHOOK_SECRET`. The initial `ping` registers the repository; then run
+`/connect_repo https://github.com/owner/repo` in the Telegram chat.
+
+### Option B: GitHub App (many repositories at once)
+
+1. Create a GitHub App (Settings → Developer settings → GitHub Apps → New GitHub App):
+   - **Webhook URL**: `https://<your-domain>/github/webhook`
+   - **Webhook secret**: the value of `GH_WEBHOOK_SECRET`
+   - **Repository permissions** (read-only): Metadata, plus whatever you want notifications for, e.g. Contents
+     (push), Pull requests, Issues, Actions (workflow runs), Checks, Deployments, Dependabot alerts,
+     Secret scanning alerts
+   - **Subscribe to events** matching those permissions
+2. Install the app on an account and pick repositories. The `installation` event registers every selected
+   repository (unconnected); `/connect_repo` links each one to a chat as usual.
+3. Adding repositories to the installation registers them; removing them, suspending or uninstalling the app
+   stops their notifications and tells the connected chat. Re-adding or unsuspending resumes them.
+
+No private key or API access is needed: everything is driven by webhook payloads.
+
 ## Running the Bot
 
 ### Development (Polling Mode)

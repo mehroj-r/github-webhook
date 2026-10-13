@@ -30,6 +30,8 @@ class GithubRepository(Base, TimestampMixin):
     message_thread_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # When set, notifications are collected and posted as one digest per interval
     digest_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # GitHub App installation that grants access to this repository (None for plain repo webhooks)
+    installation_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
 
     chat: Mapped["Chat | None"] = relationship(back_populates="repositories")
 

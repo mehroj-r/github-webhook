@@ -287,12 +287,14 @@ class GollumEvent(BaseEvent):
 
 class InstallationEvent(BaseEvent):
     action: Literal["created", "deleted", "new_permissions_accepted", "suspend", "unsuspend"]
+    installation: PayloadObject
     repositories: PayloadObjects | None = None
     requester: PayloadObject | None = None
 
 
 class InstallationRepositoriesEvent(BaseEvent):
     action: Literal["added", "removed"]
+    installation: PayloadObject
     repositories_added: PayloadObjects
     repositories_removed: PayloadObjects
     repository_selection: str
