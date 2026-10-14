@@ -1,6 +1,12 @@
 # GitHub Webhook to Telegram Bot
 
-A Telegram bot integrated with FastAPI to receive GitHub webhooks and send notifications.
+[![Deploy](https://github.com/mehroj-r/github-webhook/actions/workflows/deploy.yml/badge.svg)](https://github.com/mehroj-r/github-webhook/actions/workflows/deploy.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
+[![Telegram bot](https://img.shields.io/badge/Telegram-@github__webhook__bot-26A5E4?logo=telegram)](https://t.me/github_webhook_bot)
+
+A self-hosted Telegram bot integrated with FastAPI that receives GitHub webhooks and sends notifications to your
+chats. Try the hosted instance at [@github_webhook_bot](https://t.me/github_webhook_bot) or run your own.
 
 ## Features
 
@@ -122,7 +128,7 @@ Each worker runs independently, handling requests concurrently with async capabi
 
 - Logs are stored in the `logs/` directory
 - Set `DEBUG=true` for verbose logging
-- Code formatting with Black
+- Linting and formatting with Ruff
 
 ## Task Runner (just)
 
@@ -154,3 +160,11 @@ just test
 just check
 ```
 
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Please report security issues privately as
+described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Released under the [MIT License](LICENSE).
