@@ -97,15 +97,17 @@ class TestAsync:
 import pytest
 from fastapi.testclient import TestClient
 
+
 class TestEndpoint:
     @pytest.fixture
     def client(self):
         from core.server import app
+
         return TestClient(app)
-    
+
     @pytest.mark.integration
     def test_endpoint(self, client):
-        response = client.get('/health')
+        response = client.get("/health")
         assert response.status_code == 200
 ```
 
