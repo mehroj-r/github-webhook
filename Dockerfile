@@ -15,7 +15,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --no-dev
 
 # ---- Stage 2: Final runtime image ----
-FROM python:3.13-slim-bookworm AS final
+FROM python:3.14-slim-bookworm AS final
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
