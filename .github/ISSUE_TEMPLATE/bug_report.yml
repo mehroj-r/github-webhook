@@ -1,0 +1,45 @@
+name: Bug report
+description: Something isn't working as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Connect a repository with /connect_repo ...
+        2. Push to ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: event
+    attributes:
+      label: GitHub event type
+      description: The `X-GitHub-Event` involved, if any (e.g. `push`, `pull_request`, `workflow_run`).
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Run mode
+      options:
+        - Webhook (Docker / Gunicorn)
+        - Polling (local development)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Remove tokens, secrets and chat IDs before pasting.
+      render: shell
