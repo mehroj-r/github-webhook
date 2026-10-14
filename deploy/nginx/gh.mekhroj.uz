@@ -1,0 +1,76 @@
+# gh.mekhroj.uz: GitHub Webhook bot, dev server (github.com/mehroj-r/github-webhook).
+#
+# Installed as /etc/nginx/sites-available/gh.mekhroj.uz and symlinked into
+# sites-enabled. Not applied by deploys: after changing it, copy it over, then
+# `nginx -t && systemctl reload nginx`.
+#
+# The checkout is /root/github-webhook; CI deploys it on every push to production.
+# Its app container publishes 127.0.0.1:8120 (APP_PORT in .env).
+#
+# TLS: Cloudflare origin certificate for *.mekhroj.uz (proxied through Cloudflare;
+# real client IPs come from /etc/nginx/conf.d/cloudflare-realip.conf).
+#
+# Routes: /github/webhook (GitHub deliveries), /telegram/webhook (Telegram updates),
+# /misc/health, /admin (sqladmin, only when ADMIN_PASSWORD is set).
+
+upstream github_webhook {
+    # No keepalive: idle kept-alive connections make gunicorn wait out its
+    # whole graceful timeout on every deploy
+    server 127.0.0.1:8120;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name gh.mekhroj.uz;
+
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name gh.mekhroj.uz;
+
+    ssl_certificate     /etc/nginx/ssl/mekhroj-origin.crt;
+    ssl_certificate_key /etc/nginx/ssl/mekhroj-origin.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+
+    # GitHub caps webhook payloads at 25 MB (large pushes)
+    client_max_body_size 25m;
+
+    limit_req zone=global burst=50 nodelay;
+    limit_req_status 429;
+
+    # Scraped from the host (127.0.0.1:8120) only
+    location = /misc/metrics {
+        return 404;
+    }
+
+    # Basic auth: throttle password guessing (the page itself pulls a few static assets)
+    location /admin {
+        limit_req zone=login burst=20 nodelay;
+
+        proxy_pass http://github_webhook;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+    }
+
+    location / {
+        proxy_pass http://github_webhook;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    60s;
+        proxy_send_timeout    60s;
+    }
+}

@@ -36,6 +36,48 @@ chats. Try the hosted instance at [@github_webhook_bot](https://t.me/github_webh
    - `HOST`: Server host (default: `0.0.0.0`)
    - `PORT`: Server port (default: `8000`)
 
+## Connecting Repositories
+
+### Option A: per-repository webhook
+
+In the repository settings add a webhook with payload URL `https://<your-domain>/github/webhook`, content type
+`application/json` and the secret from `GH_WEBHOOK_SECRET`. The initial `ping` registers the repository and answers
+with a `pairing_code` (see the webhook's *Recent Deliveries → Response*); then run
+`/connect_repo https://github.com/owner/repo <pairing_code>` in the Telegram chat.
+
+The code proves the person connecting a chat can see the repository's webhook settings. It is single-use and
+expires after 72 hours; redeliver the ping for a new one. The code is also posted to the bot owner's chat
+(`MASTER_CHAT_ID`), and the owner and bot admins may connect without a code. Set `REQUIRE_PAIRING_CODE=false` to
+turn the check off.
+
+### Option B: GitHub App (many repositories at once)
+
+1. Create a GitHub App (Settings → Developer settings → GitHub Apps → New GitHub App):
+   - **Webhook URL**: `https://<your-domain>/github/webhook`
+   - **Webhook secret**: the value of `GH_WEBHOOK_SECRET`
+   - **Repository permissions** (read-only): Metadata, plus whatever you want notifications for, e.g. Contents
+     (push), Pull requests, Issues, Actions (workflow runs), Checks, Deployments, Dependabot alerts,
+     Secret scanning alerts
+   - **Subscribe to events** matching those permissions
+2. Install the app on an account and pick repositories. The `installation` event registers every selected
+   repository (unconnected) and issues pairing codes, returned in the delivery response (app settings → Advanced)
+   and posted to the bot owner's chat; `/connect_repo <url> <code>` links each one to a chat as usual.
+3. Adding repositories to the installation registers them; removing them, suspending or uninstalling the app
+   stops their notifications and tells the connected chat. Re-adding or unsuspending resumes them.
+
+No private key or API access is needed: everything is driven by webhook payloads.
+
+## Inline GitHub Actions (optional)
+
+Set `GH_TOKEN` to a token that can write Actions and Pull requests on your repositories (a fine-grained PAT, or a
+bot account's token). Notifications then get buttons, usable by chat administrators only:
+
+- failed or timed-out workflow runs: **Re-run failed jobs**
+- opened / reopened / ready-for-review pull requests: **Approve** and **Merge** (asks for confirmation; method from
+  `GH_MERGE_METHOD`: `merge`, `squash` or `rebase`)
+
+Actions are performed as the token's owner. `GH_API_URL` can point at a GitHub Enterprise Server API.
+
 ## Running the Bot
 
 ### Development (Polling Mode)
@@ -90,12 +132,20 @@ gunicorn asgi:app \
 - Recommended: `(CPU cores × 2) + 1`
 - Each worker handles requests concurrently via async/await
 
+## Logging
+
+Set `LOG_FORMAT=json` to emit one JSON object per line (console and log files). Records logged while a GitHub
+delivery is being handled carry its `delivery_id`; `extra={...}` fields become top-level keys.
+
 ## FastAPI Endpoints
 
 The FastAPI server includes:
 - `/` - Root endpoint (health check)
-- `/health` - Health check endpoint
+- `/misc/health` - Health check: database (`SELECT 1`) and Telegram (`get_me`, cached 60s); 503 only when the database is down
+- `/misc/metrics` - Prometheus metrics (`gh_webhook_deliveries_total`, `telegram_request_duration_seconds`); set `PROMETHEUS_MULTIPROC_DIR` when running several Gunicorn workers (the Docker image does); protect it with `METRICS_TOKEN`
 - `/webhook` (or your custom WEBHOOK_PATH) - Telegram webhook endpoint
+- `/admin` - Admin dashboard (chats, repositories, deliveries, digest items, bot admins). Enabled by setting
+  `ADMIN_PASSWORD` (user `ADMIN_USERNAME`, default `admin`); protected by HTTP Basic auth, so serve it over HTTPS only
 
 ## Architecture
 

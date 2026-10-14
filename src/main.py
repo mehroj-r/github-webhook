@@ -1,80 +1,79 @@
 import asyncio
-import contextlib
 import signal
 import sys
 
 from config import settings
 from core import get_logger
 from core.bot import init_bot, shutdown_bot
+from core.digest import start_scheduler, stop_scheduler
 from core.server import start_fastapi_server
+from database import close_db
 
 logger = get_logger(__name__)
 
-# Global variable to hold the server task
-server_task: asyncio.Task | None = None
 
-
-async def main():
+async def main() -> None:
     """Main entry point for the application"""
-    global server_task
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+
+    # Register signal handlers for graceful shutdown
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, _request_shutdown, sig, stop_event)
+
+    logger.info("Starting %s", settings.APP_NAME)
+    logger.info("Debug mode: %s", settings.DEBUG)
+    logger.info("Webhook mode: %s", settings.USE_WEBHOOK)
 
     try:
-        logger.info(f"Starting {settings.APP_NAME}")
-        logger.info(f"Debug mode: {settings.DEBUG}")
-        logger.info(f"Webhook mode: {settings.USE_WEBHOOK}")
-
-        # Initialize the bot
         await init_bot()
+        start_scheduler()
 
-        # If webhook mode, start FastAPI server
         if settings.USE_WEBHOOK:
             logger.info("Starting in webhook mode with FastAPI server")
-            await start_fastapi_server()
+            server_task = asyncio.create_task(start_fastapi_server(), name="fastapi-server")
+            stop_task = asyncio.create_task(stop_event.wait(), name="stop-signal")
+            done, _ = await asyncio.wait({server_task, stop_task}, return_when=asyncio.FIRST_COMPLETED)
+
+            if server_task in done:
+                # Surface server errors; a clean exit simply falls through to shutdown
+                server_task.result()
+            else:
+                server_task.cancel()
+                await asyncio.gather(server_task, return_exceptions=True)
+            stop_task.cancel()
         else:
             logger.info("Running in polling mode (FastAPI server not started)")
-            # Keep the application running in polling mode
-            await asyncio.Event().wait()
-
-    except Exception as exc:
-        logger.error(f"Error during bot initialization: {exc}", exc_info=True)
-        sys.exit(1)
+            await stop_event.wait()
+    finally:
+        await shutdown()
 
 
-async def shutdown():
-    """Shutdown both bot and server"""
-    global server_task
+def _request_shutdown(sig: signal.Signals, stop_event: asyncio.Event) -> None:
+    """Signal handler: ask the main loop to stop."""
+    logger.info("Received signal %s. Shutting down gracefully...", sig.name)
+    stop_event.set()
 
+
+async def shutdown() -> None:
+    """Shutdown the bot and release database connections"""
     logger.info("Initiating shutdown...")
-
-    # Shutdown the bot
+    await stop_scheduler()
     await shutdown_bot()
-
-    # Cancel server task if running
-    if server_task and not server_task.done():
-        server_task.cancel()
-
-        with contextlib.suppress(asyncio.CancelledError):
-            await server_task
-
+    await close_db()
     logger.info("Shutdown complete")
 
 
-def signal_handler(sig, _):
-    """Handle shutdown signals gracefully"""
-    logger.info(f"Received signal {sig}. Shutting down gracefully...")
-    loop = asyncio.get_event_loop()
-    loop.create_task(shutdown())
-
-
-if __name__ == "__main__":
-    # Register signal handlers for graceful shutdown
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
+def run() -> None:
+    """Console-script entry point."""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
+        logger.error("Fatal error: %s", e, exc_info=True)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    run()

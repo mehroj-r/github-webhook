@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: [production]  # production runs CI through deploy.yml
+  pull_request:
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    env:
+      # The bot and DB engine are created at import time, so tests need placeholder values.
+      BOT_TOKEN: "123456:ci-placeholder-token"
+      DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        run: uv run ruff check . --output-format=github
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+      - name: Type check
+        run: uv run ty check src --extra-search-path src --exclude migrations --exclude src/tests --exclude tests --exclude test
+
+      - name: Tests
+        run: uv run pytest -q
+
+      - name: Single migration head
+        run: |
+          heads=$(uv run alembic -c src/database/alembic.ini heads | grep -c "(head)")
+          if [ "$heads" -ne 1 ]; then
+            echo "::error::Expected 1 Alembic head, found $heads"
+            exit 1
+          fi

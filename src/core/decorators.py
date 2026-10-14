@@ -1,7 +1,8 @@
 import inspect
+import zlib
 from collections.abc import Callable
 from functools import wraps
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import text
 
@@ -34,8 +35,9 @@ def distributed_lock(lock_name: str):
             # Only one worker will execute this at a time
             ...
     """
-    # Generate a consistent 32-bit integer lock ID from the lock name
-    lock_id = hash(lock_name) % (2**31)
+    # Generate a consistent 32-bit integer lock ID from the lock name.
+    # hash() is salted per interpreter process, so it would give each worker a different lock.
+    lock_id = zlib.crc32(lock_name.encode("utf-8")) % (2**31)
 
     def decorator(func: Callable) -> Callable:
         @wraps(func)
@@ -79,27 +81,28 @@ def parse_command(arguments: list, validator: BaseCommandValidator):
                 parsed_arguments[argument] = ""
 
             try:
-                parts = message.text.strip().split(" ")
+                parts = (message.text or "").split()
 
                 # Extract command arguments
-                command_args = parts[1:] if len(parts) > 1 else []
+                command_args = parts[1:]
 
-                # Parse arguments
-                if len(command_args) == len(arguments):
-                    for i, argument in enumerate(arguments):
-                        parsed_arguments[argument] = command_args[i]
+                # Parse arguments positionally; missing trailing ones stay "" for the validator to judge
+                if len(command_args) <= len(arguments):
+                    for argument, value in zip(arguments, command_args, strict=False):
+                        parsed_arguments[argument] = value
 
                 # Validate arguments if validator is provided
                 is_valid, error_msg = await validator.validate(args_data=parsed_arguments)
                 if not is_valid:
-                    raise Exception(error_msg)
+                    await message.reply(error_msg)
+                    return None
 
                 # Pass parsed arguments to the handler
                 kwargs.update(parsed_arguments)
 
             except Exception as e:
-                logger.error("Error parsing command: %s", e)
-                await message.reply(str(e))
+                logger.error("Error parsing command: %s", e, exc_info=True)
+                await message.reply(validator.error_msg)
                 return None
 
             return await handler(message, *args, **kwargs)
@@ -134,7 +137,7 @@ class GitHubEventRegistry:
             model = cls._extract_event_model(handler)
 
             @wraps(handler)
-            async def wrapper(*args, **kwargs) -> None:
+            async def wrapper(*args, **kwargs) -> Any:
                 # Create a new database session for each event handling
                 async with async_session_maker() as session:
                     kwargs["session"] = session

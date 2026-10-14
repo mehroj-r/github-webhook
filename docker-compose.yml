@@ -1,6 +1,6 @@
 services:
   database:
-    container_name: gh-webhook-db-prod
+    container_name: gh-webhook-db-${DEPLOY_ENV:-prod}
     image: postgres:18-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -18,7 +18,8 @@ services:
       - .env
 
   app:
-    container_name: gh-webhook-app-prod
+    container_name: gh-webhook-app-${DEPLOY_ENV:-prod}
+    image: ${CONTAINER_NAME:-gh-webhook-app}:latest
     build: .
     entrypoint: /app/scripts/entrypoint.sh
     ports:

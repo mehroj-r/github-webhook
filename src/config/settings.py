@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Github Webhook Bot"
     DEBUG: bool = False
     LOG_DIR: str = "logs"
+    LOG_FORMAT: Literal["text", "json"] = "text"
 
     # Telegram Bot Settings
     BOT_TOKEN: str = ""
@@ -33,6 +35,20 @@ class Settings(BaseSettings):
     GH_WEBHOOK_SECRET: str = ""
     GH_WEBHOOK_URL: str = ""
     GH_WEBHOOK_PATH: str = "/webhook"  # /github/webhook
+    # Inline actions (re-run workflow, approve/merge PR) are offered only when GH_TOKEN is set
+    GH_TOKEN: str = ""
+    GH_API_URL: str = "https://api.github.com"
+    GH_MERGE_METHOD: Literal["merge", "squash", "rebase"] = "merge"
+    # /connect_repo needs the code from the repository's ping delivery (bot owner/admins are exempt)
+    REQUIRE_PAIRING_CODE: bool = True
+    WEBHOOK_PROCESS_IN_BACKGROUND: bool = True  # respond 200 after validation, handle after the response
+
+    # Observability
+    METRICS_TOKEN: str = ""  # when set, /misc/metrics requires "Authorization: Bearer <token>"
+
+    # Admin dashboard (/admin, HTTP Basic auth); disabled while ADMIN_PASSWORD is empty
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = ""
 
     # FastAPI Server Settings
     HOST: str = "0.0.0.0"
@@ -41,6 +57,11 @@ class Settings(BaseSettings):
     # Database Settings
     DATABASE_URL: str = ""
     DATABASE_ECHO: bool = False
+
+    @property
+    def telegram_webhook_url(self) -> str:
+        """Full public URL Telegram should deliver updates to."""
+        return f"{self.WEBHOOK_URL.rstrip('/')}/telegram{self.WEBHOOK_PATH}"
 
 
 @lru_cache

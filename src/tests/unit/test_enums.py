@@ -55,3 +55,15 @@ class TestContentType:
         """Test that ContentType values are strings."""
         for member in ContentType:
             assert isinstance(member.value, str)
+
+
+class TestChatType:
+    """Test database ChatType enum."""
+
+    @pytest.mark.unit
+    def test_chat_type_covers_telegram_chat_types(self):
+        """Every chat type Telegram can send must map onto the enum."""
+        from database.enums import ChatType
+
+        for telegram_type in ("private", "group", "supergroup", "channel"):
+            assert ChatType(telegram_type).value == telegram_type

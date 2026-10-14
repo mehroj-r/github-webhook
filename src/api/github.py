@@ -1,18 +1,101 @@
-from fastapi import APIRouter, HTTPException, Request, status
+from typing import TYPE_CHECKING
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, status
 
 from config import settings
 from core import get_logger
-from core.utils.github import send_unhandled_event_to_master
+from core.enums import GHEventType
+from core.metrics import record_delivery
+from core.utils.github import send_unhandled_event_to_master, verify_signature
+from core.utils.logger import delivery_id_var
+from database import async_session_maker
+from database.enums import DeliveryStatus
+from database.models import WebhookDelivery
 from handlers.github.models.events import BaseEvent
 from handlers.github.models.headers import WebhookHeaders
+
+if TYPE_CHECKING:
+    from handlers.github.events.base import EventHandler
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/github", tags=["github"])
 
+# Always handled before responding: their handlers return pairing codes for the response body
+SYNC_EVENTS = {GHEventType.PING, GHEventType.INSTALLATION, GHEventType.INSTALLATION_REPOSITORIES}
+# Safe to process again; redelivering a ping (same delivery id) is how users get a fresh pairing code
+REPLAYABLE_EVENTS = {GHEventType.PING}
+
+
+async def _record_delivery(headers: WebhookHeaders) -> tuple[WebhookDelivery | None, bool]:
+    """Persist the incoming delivery. Returns (row, is_new). Never blocks processing on log failures."""
+    try:
+        async with async_session_maker() as session:
+            row, is_new = await WebhookDelivery.start(
+                session,
+                delivery_id=headers.delivery,
+                event_type=headers.event_type.value,
+                hook_id=headers.hook_id,
+            )
+            await session.commit()
+            return row, is_new
+    except Exception as e:
+        logger.error("Failed to record delivery %s: %s", headers.delivery, e, exc_info=True)
+        return None, True
+
+
+async def _finish_delivery(
+    row: WebhookDelivery | None,
+    delivery_status: DeliveryStatus,
+    *,
+    event_type: str,
+    error: str | None = None,
+    action: str | None = None,
+    repo_name: str | None = None,
+) -> None:
+    record_delivery(event_type, delivery_status.value)
+    if row is None:
+        return
+    try:
+        async with async_session_maker() as session:
+            await row.finish(session, delivery_status, error=error, action=action, repo_name=repo_name)
+            await session.commit()
+    except Exception as e:
+        logger.error("Failed to update delivery %s: %s", row.delivery_id, e, exc_info=True)
+
+
+async def _run_handler(
+    handler: "EventHandler",
+    event: BaseEvent,
+    delivery: WebhookDelivery | None,
+    *,
+    event_type: str,
+    delivery_id: str,
+    action: str | None,
+    repo_name: str | None,
+) -> tuple[bool, dict | None]:
+    """Run the event handler and record the outcome. Returns (success, handler result); never raises."""
+    token = delivery_id_var.set(delivery_id)
+    try:
+        result = await handler(event=event)
+    except Exception as e:
+        logger.error("Error handling %s event (delivery %s): %s", event_type, delivery_id, e, exc_info=True)
+        await _finish_delivery(
+            delivery, DeliveryStatus.FAILED, event_type=event_type, error=repr(e), action=action, repo_name=repo_name
+        )
+        return False, None
+    else:
+        logger.info("Successfully handled %s event (delivery %s)", event_type, delivery_id)
+        await _finish_delivery(
+            delivery, DeliveryStatus.PROCESSED, event_type=event_type, action=action, repo_name=repo_name
+        )
+        return True, result if isinstance(result, dict) else None
+    finally:
+        delivery_id_var.reset(token)
+
 
 @router.post(path=settings.GH_WEBHOOK_PATH)
-async def github_webhook(request: Request):
+async def github_webhook(request: Request, background_tasks: BackgroundTasks):
     """Handle incoming webhook requests from GitHub"""
 
     # Validate webhook headers
@@ -21,6 +104,23 @@ async def github_webhook(request: Request):
     except Exception as e:
         logger.error("Invalid webhook headers: %s", e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook headers") from e
+
+    delivery_id_var.set(headers.delivery)
+
+    # Verify the payload signature before trusting anything in the body.
+    # Starlette caches the body, so later request.json()/request.form() calls reuse it.
+    body = await request.body()
+    if not verify_signature(body=body, signature_header=headers.signature):
+        logger.warning("Rejected GitHub delivery %s: invalid or missing signature", headers.delivery)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature")
+
+    # Idempotency: GitHub may redeliver the same delivery id
+    delivery, is_new = await _record_delivery(headers)
+    replayable = headers.event_type in REPLAYABLE_EVENTS
+    if delivery is not None and not is_new and delivery.is_processed and not replayable:
+        logger.info("Skipping already processed delivery %s", headers.delivery)
+        record_delivery(headers.event_type.value, "duplicate")
+        return {"status": "duplicate", "delivery": headers.delivery}
 
     # Get and execute handler
     event_type = headers.event_type
@@ -36,43 +136,73 @@ async def github_webhook(request: Request):
             logger.error("Failed to extract payload for unhandled event: %s", e)
             payload = {"error": "Failed to extract payload"}
 
-        # Convert headers to dict for logging
-        headers_dict = dict(request.headers)
-        await send_unhandled_event_to_master(
+        sent = await send_unhandled_event_to_master(
             event_type=event_type.value,
-            headers=headers_dict,
+            headers=dict(request.headers),
             body=payload,
         )
-        return {"status": "ignored", "reason": "no_handler", "sent_to_master": True}
+        await _finish_delivery(delivery, DeliveryStatus.IGNORED, event_type=event_type.value, error="no_handler")
+        return {"status": "ignored", "reason": "no_handler", "sent_to_master": sent}
 
     # Parse request body
     try:
         payload = await headers.extract_payload(request)
+    except HTTPException as e:
+        await _finish_delivery(delivery, DeliveryStatus.FAILED, event_type=event_type.value, error=str(e.detail))
+        raise
     except Exception as e:
         logger.error("Failed to parse request body: %s", e)
+        await _finish_delivery(delivery, DeliveryStatus.FAILED, event_type=event_type.value, error=f"invalid body: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON payload") from e
+
+    action = payload.get("action") if isinstance(payload.get("action"), str) else None
+    repo_name = (
+        (payload.get("repository") or {}).get("full_name") if isinstance(payload.get("repository"), dict) else None
+    )
 
     # Parse payload into appropriate event model
     event_model: type[BaseEvent] | None = headers.get_event_model()
     if not event_model:
         logger.error("No event model defined for event type: %s", event_type.value)
+        await _finish_delivery(
+            delivery,
+            DeliveryStatus.FAILED,
+            event_type=event_type.value,
+            error="no_event_model",
+            action=action,
+            repo_name=repo_name,
+        )
         return {"status": "error", "reason": "no_event_model"}
 
     try:
         event = event_model.model_validate(payload)
     except Exception as e:
-        logger.error("Failed to parse %s event payload: %s", event_type.value, e)
+        logger.error("Failed to parse %s event payload (delivery %s): %s", event_type.value, headers.delivery, e)
+        await _finish_delivery(
+            delivery,
+            DeliveryStatus.FAILED,
+            event_type=event_type.value,
+            error=f"validation: {e}",
+            action=action,
+            repo_name=repo_name,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid {event_type.value} event payload"
         ) from e
 
-    # Execute handler
-    try:
-        await handler(event=event)
-        logger.info("Successfully handled %s event", event_type.value)
-        return {"status": "processed", "event_type": event_type.value}
-    except Exception as e:
-        logger.error("Error handling %s event: %s", event_type.value, e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process webhook"
-        ) from e
+    run_kwargs = {
+        "event_type": event_type.value,
+        "delivery_id": headers.delivery,
+        "action": action,
+        "repo_name": repo_name,
+    }
+
+    # Acknowledge fast so GitHub's 10s timeout never triggers; the delivery log records the outcome
+    if settings.WEBHOOK_PROCESS_IN_BACKGROUND and event_type not in SYNC_EVENTS:
+        background_tasks.add_task(_run_handler, handler, event, delivery, **run_kwargs)
+        return {"status": "accepted", "event_type": event_type.value}
+
+    ok, result = await _run_handler(handler, event, delivery, **run_kwargs)
+    if ok:
+        return {"status": "processed", "event_type": event_type.value, **(result or {})}
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process webhook")

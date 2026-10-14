@@ -1,11 +1,11 @@
+from html import escape
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import get_logger
-from core.bot import bot
 from core.decorators import GitHubEventRegistry
 from core.enums import GHEventType
-from core.utils.bot import send_message
-from database.models import Chat
+from core.notifications import notify, resolve_target
 from handlers.github.models.events import PushEvent
 
 logger = get_logger(__name__)
@@ -19,9 +19,11 @@ async def handle(event: PushEvent, session: AsyncSession) -> None:
     if any([event.deleted, event.created]):
         return
 
-    # Get the chat ID associated with the repository
-    chat_id = await _get_chat_id(repo_name=event.repository.full_name, session=session)
-    if not chat_id:
+    branch = event.ref_name if event.is_branch else None
+    target = await resolve_target(
+        session, repo_name=event.repository.full_name, event_type=GHEventType.PUSH.value, branch=branch
+    )
+    if not target:
         return
 
     logger.info("Handling push event for repository: %s", event.repository.full_name)
@@ -30,24 +32,7 @@ async def handle(event: PushEvent, session: AsyncSession) -> None:
     message = await _build_commit_message(event=event)
     buttons = await _build_inline_buttons(event=event)
 
-    await send_message(
-        bot=bot,
-        chat_id=chat_id,
-        text=message,
-        url_buttons=buttons,
-    )
-
-
-async def _get_chat_id(repo_name: str, session: AsyncSession) -> int | None:
-    """Get the chat ID associated with the given repository name"""
-
-    chat = await Chat.get_by_repo(session, repo_name)
-
-    if not chat:
-        logger.error("Failed to get chat ID for repository %s", repo_name)
-        return None
-
-    return chat.chat_id
+    await notify(target, text=message, url_buttons=buttons, session=session, event_type=GHEventType.PUSH.value)
 
 
 async def _build_commit_message(event: PushEvent) -> str:
@@ -57,16 +42,16 @@ async def _build_commit_message(event: PushEvent) -> str:
     commit_count = len(event.commits)
     branch_or_tag = "🏷 Tag" if event.is_tag else "🌿 Branch"
 
-    # Build commit details (show up to 3 commits)
+    # Build commit details (show up to 3 most recent commits)
     commit_details = []
-    for commit in event.commits[commit_count - 3 :]:
+    for commit in event.commits[-3:]:
         # Get first line of commit message
         commit_msg = commit.message.split("\n")[0]
         if len(commit_msg) > 60:
             commit_msg = commit_msg[:57] + "..."
 
         # Show files changed summary
-        commit_details.append(f"  • <a href='{commit.url}'>{commit_msg}</a>")
+        commit_details.append(f"  • <a href='{commit.url}'>{escape(commit_msg)}</a>")
 
     total_added, total_removed, total_modified = 0, 0, 0
     for commit in event.commits:
@@ -85,9 +70,9 @@ async def _build_commit_message(event: PushEvent) -> str:
     force_text = " (force push)" if event.forced else ""
 
     message = (
-        f"🚀 <b>Push to <a href='{event.repository.html_url}'>{event.repository.full_name}</a></b>\n"
-        f"{branch_or_tag}: <a href='{event.ref_url}'>{event.ref_name}</a>\n"
-        f"👤 Pusher: <a href='{event.sender.html_url}'>{event.sender.login}</a>{force_text}\n"
+        f"🚀 <b>Push to <a href='{event.repository.html_url}'>{escape(event.repository.full_name)}</a></b>\n"
+        f"{branch_or_tag}: <a href='{event.ref_url}'>{escape(event.ref_name)}</a>\n"
+        f"👤 Pusher: <a href='{event.sender.html_url}'>{escape(event.sender.login)}</a>{force_text}\n"
         f"📝 {commit_count} commit{'s' if commit_count != 1 else ''} [+{total_added} / -{total_removed} / ~{total_modified}]\n\n"
         f"{commits_text}"
         f"{more_commits}"
