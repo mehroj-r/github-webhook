@@ -11,10 +11,7 @@ class RepoUrlCommandValidator(BaseCommandValidator):
 
     arguments = ["repo_url"]
     command = "connect_repo"
-
-    @property
-    def error_msg(self) -> str:  # type: ignore[override]
-        return f"Usage: /{self.command} https://github.com/username/repository"
+    error_msg = "Usage: /connect_repo https://github.com/username/repository"
 
     async def validate_repo_url(self, url: str) -> tuple[bool, str]:
         # Check if URL is provided
@@ -33,10 +30,7 @@ class ConnectRepoCommandValidator(RepoUrlCommandValidator):
 
     arguments = ["repo_url", "code"]
     command = "connect_repo"
-
-    @property
-    def error_msg(self) -> str:  # type: ignore[override]
-        return f"Usage: /{self.command} https://github.com/username/repository PAIRINGCODE"
+    error_msg = "Usage: /connect_repo https://github.com/username/repository PAIRINGCODE"
 
     async def validate_code(self, code: str) -> tuple[bool, str]:
         if code and not PAIRING_CODE_PATTERN.match(code):
@@ -46,3 +40,4 @@ class ConnectRepoCommandValidator(RepoUrlCommandValidator):
 
 class DisconnectRepoCommandValidator(RepoUrlCommandValidator):
     command = "disconnect_repo"
+    error_msg = "Usage: /disconnect_repo https://github.com/username/repository"
